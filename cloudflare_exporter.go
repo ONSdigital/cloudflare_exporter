@@ -34,7 +34,8 @@ var (
 				Envar("CLOUDFLARE_EXPORTER_SCRAPE_TIMEOUT_SECONDS").Default("30").Int()
 
 	// metric descriptions
-	zoneCount = prometheus.NewDesc(prometheus.BuildFQName(namespace, "zones", "count"), "Number of zones in the target Cloudflare account", nil, nil)
+	zoneCount    = prometheus.NewDesc(prometheus.BuildFQName(namespace, "zones", "count"), "Number of zones in the target Cloudflare account", nil, nil)
+	httpRequests = prometheus.NewDesc(prometheus.BuildFQName(namespace, "zones", "http_requests"), "Number of zones in the target Cloudflare account", nil, nil)
 
 	// direct instrumentation counters
 	totalScrapes   = prometheus.NewCounter(prometheus.CounterOpts{Namespace: namespace, Subsystem: "exporter", Name: "total_scrapes", Help: "Number of times this exporter has been scraped"})
@@ -127,22 +128,37 @@ func (e *exporter) collectZones(ctx context.Context, metrics chan<- prometheus.M
 		return
 	}
 	metrics <- prometheus.MustNewConstMetric(zoneCount, prometheus.GaugeValue, float64(len(zones)))
+
+	e.collectZoneAnalytics(ctx, metrics, zones)
 }
 
-func parseZoneIDs(apiRespBody io.Reader) ([]string, error) {
+func (e *exporter) collectZoneAnalytics(ctx context.Context, metrics chan<- prometheus.Metric, zones map[string]string) {
+	var err error
+	defer func() {
+		if err != nil {
+			// TODO pick new arbitrary metric
+			// metrics <- prometheus.NewInvalidMetric(zoneCount, err)
+			scrapeFailures.Inc()
+			metrics <- scrapeFailures
+		}
+	}()
+}
+
+func parseZoneIDs(apiRespBody io.Reader) (map[string]string, error) {
 	var zoneList zonesResp
 	if err := json.NewDecoder(apiRespBody).Decode(&zoneList); err != nil {
 		return nil, err
 	}
-	var zones []string
+	zones := map[string]string{}
 	for _, zone := range zoneList.Result {
-		zones = append(zones, zone.ID)
+		zones[zone.ID] = zone.Name
 	}
 	return zones, nil
 }
 
 type zonesResp struct {
 	Result []struct {
-		ID string `json:"id"`
+		ID   string `json:"id"`
+		Name string `json:"name"`
 	} `json:"result"`
 }

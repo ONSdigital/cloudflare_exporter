@@ -14,5 +14,5 @@ func TestParseZoneIDs(t *testing.T) {
 	defer f.Close()
 	zones, err := parseZoneIDs(f)
 	require.Nil(t, err)
-	assert.ElementsMatch(t, zones, []string{"zone-id-1", "zone-id-2"})
+	assert.Equal(t, zones, map[string]string{"zone-1-id": "zone-1", "zone-2-id": "zone-2"})
 }

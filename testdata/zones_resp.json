@@ -1,8 +1,8 @@
 {
     "result": [
         {
-            "id": "zone-id-1",
-            "name": "foo.com",
+            "id": "zone-1-id",
+            "name": "zone-1",
             "status": "pending",
             "paused": false,
             "type": "full",
@@ -97,8 +97,8 @@
             }
         },
         {
-            "id": "zone-id-2",
-            "name": "foo.com",
+            "id": "zone-2-id",
+            "name": "zone-2",
             "status": "pending",
             "paused": false,
             "type": "full",
