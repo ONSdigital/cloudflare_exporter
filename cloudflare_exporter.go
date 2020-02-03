@@ -2,9 +2,7 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
 	"log"
 	"net"
 	"net/http"
@@ -37,17 +35,6 @@ var (
 				Envar("CLOUDFLARE_SCRAPE_INTERVAL_MINUTES").Default("300").Int()
 	scrapeTimeoutSeconds = kingpin.Flag("scrape-timeout-seconds", "scrape timeout seconds").
 				Envar("CLOUDFLARE_EXPORTER_SCRAPE_TIMEOUT_SECONDS").Default("30").Int()
-
-	// zone metrics
-	zoneCount    = prometheus.NewGauge(prometheus.GaugeOpts{Namespace: namespace, Subsystem: "zones", Name: "active_count", Help: "Number of active zones in the target Cloudflare account"})
-	httpRequests = prometheus.NewCounterVec(
-		prometheus.CounterOpts{Namespace: namespace, Subsystem: "zones", Name: "http_requests", Help: "Number of HTTP requests made by clients"},
-		[]string{"zone", "client_country_name"},
-	)
-
-	// exporter metrics
-	cfScrapes    = prometheus.NewCounter(prometheus.CounterOpts{Namespace: namespace, Subsystem: "exporter", Name: "cloudflare_scrapes", Help: "Number of times this exporter has scraped cloudflare"})
-	cfScrapeErrs = prometheus.NewCounter(prometheus.CounterOpts{Namespace: namespace, Subsystem: "exporter", Name: "cloudflare_scrape_errors", Help: "Number of times this exporter has failed to scrape cloudflare"})
 )
 
 func main() {
@@ -96,13 +83,6 @@ func main() {
 	if err := runGroup.Run(); err != nil {
 		logger.Fatal(err)
 	}
-}
-
-func registerMetrics() {
-	prometheus.MustRegister(zoneCount)
-	prometheus.MustRegister(httpRequests)
-	prometheus.MustRegister(cfScrapes)
-	prometheus.MustRegister(cfScrapeErrs)
 }
 
 type exporter struct {
@@ -193,6 +173,8 @@ query ($zones: [string!], $start_time: Time) {
 			for _, country := range reqGroup.Sum.CountryMap {
 				httpRequests.WithLabelValues(zones[zone.ZoneTag], country.ClientCountryName).
 					Add(float64(country.Requests))
+				httpThreats.WithLabelValues(zones[zone.ZoneTag], country.ClientCountryName).
+					Add(float64(country.Threats))
 			}
 		}
 	}
@@ -227,49 +209,10 @@ func (e *exporter) getZones(ctx context.Context) (map[string]string, error) {
 	return zones, nil
 }
 
-func parseZoneIDs(apiRespBody io.Reader) (map[string]string, error) {
-	var zoneList zonesResp
-	if err := json.NewDecoder(apiRespBody).Decode(&zoneList); err != nil {
-		return nil, err
-	}
-	zones := map[string]string{}
-	for _, zone := range zoneList.Result {
-		if zone.Status != "pending" {
-			zones[zone.ID] = zone.Name
-		}
-	}
-	return zones, nil
-}
-
 func keys(dict map[string]string) []string {
 	var keys []string
 	for key := range dict {
 		keys = append(keys, key)
 	}
 	return keys
-}
-
-type httpRequestsResp struct {
-	Viewer struct {
-		Zones []struct {
-			ReqGroups []struct {
-				Sum struct {
-					CountryMap []struct {
-						ClientCountryName string `json:"clientCountryName"`
-						Requests          uint64 `json:"requests"`
-						Threats           uint64 `json:"threats"`
-					} `json:"countryMap"`
-				} `json:"sum"`
-			} `json:"httpRequests1mGroups"`
-			ZoneTag string `json:"zoneTag"`
-		} `json:"zones"`
-	} `json:"viewer"`
-}
-
-type zonesResp struct {
-	Result []struct {
-		ID     string `json:"id"`
-		Name   string `json:"name"`
-		Status string `json:"status"`
-	} `json:"result"`
 }
