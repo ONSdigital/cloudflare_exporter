@@ -78,6 +78,7 @@ type exporter struct {
 func (e *exporter) Describe(descs chan<- *prometheus.Desc) {
 	descs <- zoneCount
 	descs <- totalScrapes.Desc()
+	descs <- scrapeFailures.Desc()
 }
 
 func (e *exporter) Collect(metrics chan<- prometheus.Metric) {
