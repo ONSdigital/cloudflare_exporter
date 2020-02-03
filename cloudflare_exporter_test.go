@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestParseZoneIDs(t *testing.T) {
+func TestParseZoneIDs_ReturnsMapOfNonPendingZones(t *testing.T) {
 	f, err := os.Open("testdata/zones_resp.json")
 	require.Nil(t, err)
 	defer f.Close()

@@ -11,6 +11,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/machinebox/graphql"
 	"github.com/oklog/run"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -38,10 +39,13 @@ var (
 				Envar("CLOUDFLARE_EXPORTER_SCRAPE_TIMEOUT_SECONDS").Default("30").Int()
 
 	// zone metrics
-	zoneCount = prometheus.NewGauge(prometheus.GaugeOpts{Namespace: namespace, Subsystem: "zones", Name: "count", Help: "Number of zones in the target Cloudflare account"})
+	zoneCount    = prometheus.NewGauge(prometheus.GaugeOpts{Namespace: namespace, Subsystem: "zones", Name: "active_count", Help: "Number of active zones in the target Cloudflare account"})
+	httpRequests = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Namespace: namespace, Subsystem: "zones", Name: "http_requests", Help: "Number of HTTP requests made by clients"},
+		[]string{"zone", "client_country_name"},
+	)
 
 	// exporter metrics
-	totalScrapes = prometheus.NewCounter(prometheus.CounterOpts{Namespace: namespace, Subsystem: "exporter", Name: "total_scrapes", Help: "Number of times this exporter has been scraped"})
 	cfScrapes    = prometheus.NewCounter(prometheus.CounterOpts{Namespace: namespace, Subsystem: "exporter", Name: "cloudflare_scrapes", Help: "Number of times this exporter has scraped cloudflare"})
 	cfScrapeErrs = prometheus.NewCounter(prometheus.CounterOpts{Namespace: namespace, Subsystem: "exporter", Name: "cloudflare_scrape_errors", Help: "Number of times this exporter has failed to scrape cloudflare"})
 )
@@ -59,7 +63,7 @@ func main() {
 		scrapeTimeout:       time.Duration(*scrapeTimeoutSeconds) * time.Second,
 		scrapeInterval:      time.Duration(*cfScrapeIntervalSeconds) * time.Second,
 	}
-	prometheus.MustRegister(cfExporter)
+	registerMetrics()
 
 	// TODO populate the build-time vars in
 	// https://github.com/prometheus/common/blob/master/version/info.go with
@@ -92,6 +96,13 @@ func main() {
 	if err := runGroup.Run(); err != nil {
 		logger.Fatal(err)
 	}
+}
+
+func registerMetrics() {
+	prometheus.MustRegister(zoneCount)
+	prometheus.MustRegister(httpRequests)
+	prometheus.MustRegister(cfScrapes)
+	prometheus.MustRegister(cfScrapeErrs)
 }
 
 type exporter struct {
@@ -135,49 +146,85 @@ func (e *exporter) scrapeCloudflareOnce(ctx context.Context, logger *log.Logger)
 	ctx, cancel := context.WithTimeout(ctx, e.scrapeTimeout)
 	defer cancel()
 
+	zones, err := e.getZones(ctx)
+	if err != nil {
+		return err
+	}
+	zoneCount.Set(float64(len(zones)))
+
+	return e.getZoneAnalytics(ctx, zones)
+}
+
+func (e *exporter) getZoneAnalytics(ctx context.Context, zones map[string]string) error {
+	req := graphql.NewRequest(`
+query ($zones: [string!], $start_time: Time) {
+  viewer {
+    zones(filter: {zoneTag_in: $zones}) {
+      zoneTag
+
+			# Assume we don't have >10k countries, and won't need to paginate.
+      httpRequests1mGroups(limit: 10000, filter: {datetime_gt: $start_time}) {
+        sum {
+          countryMap {
+            clientCountryName
+            requests
+            threats
+          }
+        }
+      }
+    }
+  }
+}
+	`)
+
+	req.Var("zones", keys(zones))
+	req.Var("start_time", time.Now().Add(-e.scrapeInterval))
+	req.Header.Set("X-AUTH-EMAIL", e.email)
+	req.Header.Set("X-AUTH-KEY", e.apiKey)
+
+	gqlClient := graphql.NewClient(e.analyticsAPIBaseURL)
+	var gqlResp httpRequestsResp
+	if err := gqlClient.Run(ctx, req, &gqlResp); err != nil {
+		return err
+	}
+
+	for _, zone := range gqlResp.Viewer.Zones {
+		for _, reqGroup := range zone.ReqGroups {
+			for _, country := range reqGroup.Sum.CountryMap {
+				httpRequests.WithLabelValues(zones[zone.ZoneTag], country.ClientCountryName).
+					Add(float64(country.Requests))
+			}
+		}
+	}
+
+	return nil
+}
+
+func (e *exporter) getZones(ctx context.Context) (map[string]string, error) {
 	// TODO handle >50 zones (the API maximum per page) by requesting successive
 	// pages. For now, we don't anticipate having >50 zones any time soon.
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, e.apiBaseURL+"/zones?per_page=50", nil)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	req.Header.Set("X-AUTH-EMAIL", e.email)
 	req.Header.Set("X-AUTH-KEY", e.apiKey)
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if resp.StatusCode != http.StatusOK {
 		err = fmt.Errorf("expected status 200, got %d", resp.StatusCode)
-		return err
+		return nil, err
 	}
 
 	defer resp.Body.Close()
 	zones, err := parseZoneIDs(resp.Body)
 	if err != nil {
-		return err
+		return nil, err
 	}
-
-	zoneCount.Set(float64(len(zones)))
-	return nil
-}
-
-func (e *exporter) Describe(descs chan<- *prometheus.Desc) {
-	descs <- zoneCount.Desc()
-	descs <- totalScrapes.Desc()
-	descs <- cfScrapes.Desc()
-	descs <- cfScrapeErrs.Desc()
-}
-
-func (e *exporter) Collect(metrics chan<- prometheus.Metric) {
-	// TODO does this need to be mutex-ed?
-	totalScrapes.Inc()
-	metrics <- totalScrapes
-
-	metrics <- zoneCount
-	metrics <- cfScrapes
-	metrics <- cfScrapeErrs
+	return zones, nil
 }
 
 func parseZoneIDs(apiRespBody io.Reader) (map[string]string, error) {
@@ -187,14 +234,42 @@ func parseZoneIDs(apiRespBody io.Reader) (map[string]string, error) {
 	}
 	zones := map[string]string{}
 	for _, zone := range zoneList.Result {
-		zones[zone.ID] = zone.Name
+		if zone.Status != "pending" {
+			zones[zone.ID] = zone.Name
+		}
 	}
 	return zones, nil
 }
 
+func keys(dict map[string]string) []string {
+	var keys []string
+	for key := range dict {
+		keys = append(keys, key)
+	}
+	return keys
+}
+
+type httpRequestsResp struct {
+	Viewer struct {
+		Zones []struct {
+			ReqGroups []struct {
+				Sum struct {
+					CountryMap []struct {
+						ClientCountryName string `json:"clientCountryName"`
+						Requests          uint64 `json:"requests"`
+						Threats           uint64 `json:"threats"`
+					} `json:"countryMap"`
+				} `json:"sum"`
+			} `json:"httpRequests1mGroups"`
+			ZoneTag string `json:"zoneTag"`
+		} `json:"zones"`
+	} `json:"viewer"`
+}
+
 type zonesResp struct {
 	Result []struct {
-		ID   string `json:"id"`
-		Name string `json:"name"`
+		ID     string `json:"id"`
+		Name   string `json:"name"`
+		Status string `json:"status"`
 	} `json:"result"`
 }
