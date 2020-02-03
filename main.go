@@ -36,7 +36,8 @@ var (
 	zoneCount = prometheus.NewDesc(prometheus.BuildFQName(namespace, "zones", "count"), "Number of zones in the target Cloudflare account", nil, nil)
 
 	// direct instrumentation counters
-	totalScrapes = prometheus.NewCounter(prometheus.CounterOpts{Namespace: namespace, Subsystem: "exporter", Name: "total_scrapes", Help: "Number of times this exporter has been scraped"})
+	totalScrapes   = prometheus.NewCounter(prometheus.CounterOpts{Namespace: namespace, Subsystem: "exporter", Name: "total_scrapes", Help: "Number of times this exporter has been scraped"})
+	scrapeFailures = prometheus.NewCounter(prometheus.CounterOpts{Namespace: namespace, Subsystem: "exporter", Name: "scrape_failures", Help: "Number of times this exporter has errored on scrape"})
 )
 
 func main() {
@@ -82,19 +83,28 @@ func (e *exporter) Collect(metrics chan<- prometheus.Metric) {
 	ctx, cancel := context.WithTimeout(context.Background(), e.scrapeTimeout)
 	defer cancel()
 
-	e.collectZones(ctx, metrics)
-
 	// TODO does this need to be mutex-ed?
 	totalScrapes.Inc()
 	metrics <- totalScrapes
+
+	e.collectZones(ctx, metrics)
+
 }
 
 func (e *exporter) collectZones(ctx context.Context, metrics chan<- prometheus.Metric) {
+	var err error
+	defer func() {
+		if err != nil {
+			metrics <- prometheus.NewInvalidMetric(zoneCount, err)
+			scrapeFailures.Inc()
+			metrics <- scrapeFailures
+		}
+	}()
+
 	// TODO handle >50 zones (the API maximum per page) by requesting successive
 	// pages. For now, we don't anticipate having >50 zones any time soon.
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, e.apiBaseURL+"/zones?per_page=50", nil)
 	if err != nil {
-		metrics <- prometheus.NewInvalidMetric(zoneCount, err)
 		return
 	}
 	req.Header.Set("X-AUTH-EMAIL", e.email)
@@ -102,18 +112,17 @@ func (e *exporter) collectZones(ctx context.Context, metrics chan<- prometheus.M
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		metrics <- prometheus.NewInvalidMetric(zoneCount, err)
 		return
 	}
 	if resp.StatusCode != http.StatusOK {
-		metrics <- prometheus.NewInvalidMetric(zoneCount, fmt.Errorf("expected status 200, got %d", resp.StatusCode))
+		err = fmt.Errorf("expected status 200, got %d", resp.StatusCode)
 		return
 	}
 
 	defer resp.Body.Close()
 	var zoneList zonesResp
-	if err := json.NewDecoder(resp.Body).Decode(&zoneList); err != nil {
-		metrics <- prometheus.NewInvalidMetric(zoneCount, err)
+	err = json.NewDecoder(resp.Body).Decode(&zoneList)
+	if err != nil {
 		return
 	}
 	var zones []string
