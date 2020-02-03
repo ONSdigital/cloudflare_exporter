@@ -1,0 +1,206 @@
+{
+    "result": [
+        {
+            "id": "zone-id-1",
+            "name": "foo.com",
+            "status": "pending",
+            "paused": false,
+            "type": "full",
+            "development_mode": 0,
+            "name_servers": [
+                "foo.ns.cloudflare.com",
+                "bar.ns.cloudflare.com"
+            ],
+            "original_name_servers": [
+                "dns.org"
+            ],
+            "original_registrar": "registrar",
+            "original_dnshost": null,
+            "modified_on": "2019-12-18T15:39:45.637862Z",
+            "created_on": "2019-12-17T20:53:09.027303Z",
+            "activated_on": null,
+            "meta": {
+                "step": 2,
+                "wildcard_proxiable": true,
+                "custom_certificate_quota": 0,
+                "page_rule_quota": 3,
+                "phishing_detected": false,
+                "multiple_railguns_allowed": false
+            },
+            "owner": {
+                "id": "owner-id",
+                "type": "organization",
+                "name": "GitLab"
+            },
+            "account": {
+                "id": "account-id",
+                "name": "GitLab"
+            },
+            "permissions": [
+                "#access:edit",
+                "#access:read",
+                "#analytics:read",
+                "#app:edit",
+                "#auditlogs:read",
+                "#billing:read",
+                "#cache_purge:edit",
+                "#dns_records:edit",
+                "#dns_records:read",
+                "#lb:edit",
+                "#lb:read",
+                "#legal:read",
+                "#logs:edit",
+                "#logs:read",
+                "#member:read",
+                "#organization:edit",
+                "#organization:read",
+                "#ssl:edit",
+                "#ssl:read",
+                "#stream:edit",
+                "#stream:read",
+                "#subscription:edit",
+                "#subscription:read",
+                "#waf:edit",
+                "#waf:read",
+                "#webhooks:edit",
+                "#webhooks:read",
+                "#worker:edit",
+                "#worker:read",
+                "#zone:edit",
+                "#zone:read",
+                "#zone_settings:edit",
+                "#zone_settings:read"
+            ],
+            "plan": {
+                "id": "some-plan",
+                "name": "Free Website",
+                "price": 0,
+                "currency": "USD",
+                "frequency": "",
+                "is_subscribed": true,
+                "can_subscribe": false,
+                "legacy_id": "free",
+                "legacy_discount": false,
+                "externally_managed": false
+            },
+            "plan_pending": {
+                "id": "some-plan",
+                "name": "Enterprise Website",
+                "price": 0,
+                "currency": "USD",
+                "frequency": "monthly",
+                "is_subscribed": false,
+                "can_subscribe": true,
+                "legacy_id": "enterprise",
+                "legacy_discount": false,
+                "externally_managed": true
+            }
+        },
+        {
+            "id": "zone-id-2",
+            "name": "foo.com",
+            "status": "pending",
+            "paused": false,
+            "type": "full",
+            "development_mode": 0,
+            "name_servers": [
+                "foo.ns.cloudflare.com",
+                "bar.ns.cloudflare.com"
+            ],
+            "original_name_servers": [
+                "dns.org"
+            ],
+            "original_registrar": "registrar",
+            "original_dnshost": null,
+            "modified_on": "2019-12-18T15:39:45.637862Z",
+            "created_on": "2019-12-17T20:53:09.027303Z",
+            "activated_on": null,
+            "meta": {
+                "step": 2,
+                "wildcard_proxiable": true,
+                "custom_certificate_quota": 0,
+                "page_rule_quota": 3,
+                "phishing_detected": false,
+                "multiple_railguns_allowed": false
+            },
+            "owner": {
+                "id": "owner-id",
+                "type": "organization",
+                "name": "GitLab"
+            },
+            "account": {
+                "id": "account-id",
+                "name": "GitLab"
+            },
+            "permissions": [
+                "#access:edit",
+                "#access:read",
+                "#analytics:read",
+                "#app:edit",
+                "#auditlogs:read",
+                "#billing:read",
+                "#cache_purge:edit",
+                "#dns_records:edit",
+                "#dns_records:read",
+                "#lb:edit",
+                "#lb:read",
+                "#legal:read",
+                "#logs:edit",
+                "#logs:read",
+                "#member:read",
+                "#organization:edit",
+                "#organization:read",
+                "#ssl:edit",
+                "#ssl:read",
+                "#stream:edit",
+                "#stream:read",
+                "#subscription:edit",
+                "#subscription:read",
+                "#waf:edit",
+                "#waf:read",
+                "#webhooks:edit",
+                "#webhooks:read",
+                "#worker:edit",
+                "#worker:read",
+                "#zone:edit",
+                "#zone:read",
+                "#zone_settings:edit",
+                "#zone_settings:read"
+            ],
+            "plan": {
+                "id": "some-plan",
+                "name": "Free Website",
+                "price": 0,
+                "currency": "USD",
+                "frequency": "",
+                "is_subscribed": true,
+                "can_subscribe": false,
+                "legacy_id": "free",
+                "legacy_discount": false,
+                "externally_managed": false
+            },
+            "plan_pending": {
+                "id": "some-plan",
+                "name": "Enterprise Website",
+                "price": 0,
+                "currency": "USD",
+                "frequency": "monthly",
+                "is_subscribed": false,
+                "can_subscribe": true,
+                "legacy_id": "enterprise",
+                "legacy_discount": false,
+                "externally_managed": true
+            }
+        }
+    ],
+    "result_info": {
+        "page": 1,
+        "per_page": 20,
+        "total_pages": 1,
+        "count": 2,
+        "total_count": 2
+    },
+    "success": true,
+    "errors": [],
+    "messages": []
+}

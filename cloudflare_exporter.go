@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -120,16 +121,23 @@ func (e *exporter) collectZones(ctx context.Context, metrics chan<- prometheus.M
 	}
 
 	defer resp.Body.Close()
-	var zoneList zonesResp
-	err = json.NewDecoder(resp.Body).Decode(&zoneList)
+	zones, err := parseZoneIDs(resp.Body)
 	if err != nil {
 		return
+	}
+	metrics <- prometheus.MustNewConstMetric(zoneCount, prometheus.GaugeValue, float64(len(zones)))
+}
+
+func parseZoneIDs(apiRespBody io.Reader) ([]string, error) {
+	var zoneList zonesResp
+	if err := json.NewDecoder(apiRespBody).Decode(&zoneList); err != nil {
+		return nil, err
 	}
 	var zones []string
 	for _, zone := range zoneList.Result {
 		zones = append(zones, zone.ID)
 	}
-	metrics <- prometheus.MustNewConstMetric(zoneCount, prometheus.GaugeValue, float64(len(zones)))
+	return zones, nil
 }
 
 type zonesResp struct {
