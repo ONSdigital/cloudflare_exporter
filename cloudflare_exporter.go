@@ -56,7 +56,6 @@ func main() {
 		scrapeTimeout:       time.Duration(*scrapeTimeoutSeconds) * time.Second,
 		scrapeInterval:      time.Duration(*cfScrapeIntervalSeconds) * time.Second,
 	}
-	registerMetrics()
 
 	// TODO populate the build-time vars in
 	// https://github.com/prometheus/common/blob/master/version/info.go with
@@ -138,7 +137,7 @@ func (e *exporter) scrapeCloudflareOnce(ctx context.Context, logger log.Logger) 
 	if err != nil {
 		return err
 	}
-	zoneCount.Set(float64(len(zones)))
+	zonesActive.Set(float64(len(zones)))
 
 	return e.getZoneAnalytics(ctx, zones)
 }
