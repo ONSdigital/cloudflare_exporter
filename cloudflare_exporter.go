@@ -53,11 +53,11 @@ func main() {
 
 	cfExporter := &exporter{
 		email: *cfEmail, apiKey: *cfAPIKey, apiBaseURL: *cfAPIBaseURL,
-		analyticsAPIBaseURL: *cfAnalyticsAPIBaseURL,
-		scrapeTimeout:       time.Duration(*scrapeTimeoutSeconds) * time.Second,
-		scrapeInterval:      time.Duration(*cfScrapeIntervalSeconds) * time.Second,
-		logger:              logger,
-		scrapeLock:          &sync.Mutex{},
+		graphqlClient:  graphql.NewClient(*cfAnalyticsAPIBaseURL),
+		scrapeTimeout:  time.Duration(*scrapeTimeoutSeconds) * time.Second,
+		scrapeInterval: time.Duration(*cfScrapeIntervalSeconds) * time.Second,
+		logger:         logger,
+		scrapeLock:     &sync.Mutex{},
 	}
 
 	// TODO populate the build-time vars in
@@ -96,18 +96,34 @@ func main() {
 }
 
 type exporter struct {
-	email               string
-	apiKey              string
-	apiBaseURL          string
-	analyticsAPIBaseURL string
-	scrapeInterval      time.Duration
-	scrapeTimeout       time.Duration
-	logger              log.Logger
+	email          string
+	apiKey         string
+	apiBaseURL     string
+	graphqlClient  *graphql.Client
+	scrapeInterval time.Duration
+	scrapeTimeout  time.Duration
+	logger         log.Logger
 
 	scrapeLock *sync.Mutex
 }
 
 func (e *exporter) scrapeCloudflare(ctx context.Context) error {
+	e.logger.Log("msg", "collecting initial country list")
+	initialZones, err := e.getZones(ctx)
+	if err != nil {
+		return err
+	}
+	initialCountries, err := e.getInitialCountries(ctx, initialZones)
+	if err != nil {
+		return err
+	}
+	for _, zone := range initialZones {
+		for country := range initialCountries {
+			httpRequests.WithLabelValues(zone, country)
+			httpThreats.WithLabelValues(zone, country)
+		}
+	}
+
 	ticker := time.Tick(e.scrapeInterval)
 	for {
 		select {
@@ -155,6 +171,47 @@ func (e *exporter) scrapeCloudflareOnce(ctx context.Context) (err error) {
 	return nil
 }
 
+func (e *exporter) getInitialCountries(ctx context.Context, zones map[string]string) (map[string]struct{}, error) {
+	req := graphql.NewRequest(`
+query ($zones: [string!], $start_time: Time) {
+  viewer {
+    zones(filter: {zoneTag_in: $zones}) {
+      zoneTag
+
+      # Assume we don't have >10k countries, and won't need to paginate.
+      httpRequests1mGroups(limit: 10000, filter: {datetime_gt: $start_time}) {
+        sum {
+          countryMap {
+            clientCountryName
+          }
+        }
+      }
+    }
+  }
+}
+	`)
+
+	req.Var("zones", keys(zones))
+	req.Var("start_time", time.Now().Add(-12*time.Hour))
+
+	var gqlResp httpRequestsResp
+	if err := e.makeGraphqlRequest(ctx, req, &gqlResp); err != nil {
+		return nil, err
+	}
+
+	// Quick n dirty HashSet
+	// Values will be unique within a zone, but we have a list of zones.
+	countries := map[string]struct{}{}
+	for _, zone := range gqlResp.Viewer.Zones {
+		for _, reqGroup := range zone.ReqGroups {
+			for _, country := range reqGroup.Sum.CountryMap {
+				countries[country.ClientCountryName] = struct{}{}
+			}
+		}
+	}
+	return countries, nil
+}
+
 func (e *exporter) getZoneAnalytics(ctx context.Context, zones map[string]string) error {
 	req := graphql.NewRequest(`
 query ($zones: [string!], $start_time: Time) {
@@ -179,12 +236,9 @@ query ($zones: [string!], $start_time: Time) {
 
 	req.Var("zones", keys(zones))
 	req.Var("start_time", time.Now().Add(-e.scrapeInterval))
-	req.Header.Set("X-AUTH-EMAIL", e.email)
-	req.Header.Set("X-AUTH-KEY", e.apiKey)
 
-	gqlClient := graphql.NewClient(e.analyticsAPIBaseURL)
 	var gqlResp httpRequestsResp
-	if err := gqlClient.Run(ctx, req, &gqlResp); err != nil {
+	if err := e.makeGraphqlRequest(ctx, req, &gqlResp); err != nil {
 		return err
 	}
 
@@ -200,6 +254,12 @@ query ($zones: [string!], $start_time: Time) {
 	}
 
 	return nil
+}
+
+func (e *exporter) makeGraphqlRequest(ctx context.Context, req *graphql.Request, resp interface{}) error {
+	req.Header.Set("X-AUTH-EMAIL", e.email)
+	req.Header.Set("X-AUTH-KEY", e.apiKey)
+	return e.graphqlClient.Run(ctx, req, &resp)
 }
 
 func (e *exporter) getZones(ctx context.Context) (map[string]string, error) {
