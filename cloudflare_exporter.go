@@ -3,16 +3,17 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"net"
 	"net/http"
 	"os"
 	"time"
 
+	"github.com/go-kit/kit/log"
 	"github.com/machinebox/graphql"
 	"github.com/oklog/run"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/prometheus/common/promlog"
 	"github.com/prometheus/common/version"
 	"gopkg.in/alecthomas/kingpin.v2"
 )
@@ -38,9 +39,14 @@ var (
 )
 
 func main() {
-	// TODO structured logger
-	logger := log.New(os.Stdout, "[cloudflare-exporter] ", log.LstdFlags)
-	logger.Println("starting")
+	logLevel := &promlog.AllowedLevel{}
+	if err := logLevel.Set("debug"); err != nil {
+		panic(err)
+	}
+	logConf := &promlog.Config{Level: logLevel, Format: &promlog.AllowedFormat{}}
+	logger := promlog.New(logConf)
+	logger = log.With(logger, "severity", "INFO")
+	logger.Log("msg", "starting")
 
 	kingpin.Parse()
 
@@ -62,10 +68,11 @@ func main() {
 
 	runGroup := run.Group{}
 
-	logger.Printf("listening on %s\n", *listenAddress)
+	logger.Log("msg", "listening", "addr", *listenAddress)
 	serverSocket, err := net.Listen("tcp", *listenAddress)
 	if err != nil {
-		logger.Fatal(err)
+		logger.Log("severity", "ERROR", "error", err)
+		os.Exit(1)
 	}
 	runGroup.Add(func() error {
 		return http.Serve(serverSocket, router)
@@ -81,7 +88,8 @@ func main() {
 	})
 
 	if err := runGroup.Run(); err != nil {
-		logger.Fatal(err)
+		logger.Log("severity", "ERROR", "error", err)
+		os.Exit(1)
 	}
 }
 
@@ -94,7 +102,7 @@ type exporter struct {
 	scrapeTimeout       time.Duration
 }
 
-func (e *exporter) scrapeCloudflare(ctx context.Context, logger *log.Logger) error {
+func (e *exporter) scrapeCloudflare(ctx context.Context, logger log.Logger) error {
 	ticker := time.Tick(e.scrapeInterval)
 	for {
 		select {
@@ -105,7 +113,7 @@ func (e *exporter) scrapeCloudflare(ctx context.Context, logger *log.Logger) err
 				// might never notice that we are not updating our cached metrics.
 				// Instead, we should alert on the exporter_cloudflare_scrape_errors
 				// metric.
-				logger.Println(err)
+				logger.Log("severity", "ERROR", "error", err)
 			}
 		case <-ctx.Done():
 			return nil
@@ -113,14 +121,14 @@ func (e *exporter) scrapeCloudflare(ctx context.Context, logger *log.Logger) err
 	}
 }
 
-func (e *exporter) scrapeCloudflareOnce(ctx context.Context, logger *log.Logger) (err error) {
+func (e *exporter) scrapeCloudflareOnce(ctx context.Context, logger log.Logger) (err error) {
 	defer func() {
 		if err != nil {
 			cfScrapeErrs.Inc()
 		}
 	}()
 
-	logger.Println("scraping Cloudflare")
+	logger.Log("msg", "scraping Cloudflare")
 	cfScrapes.Inc()
 
 	ctx, cancel := context.WithTimeout(ctx, e.scrapeTimeout)
