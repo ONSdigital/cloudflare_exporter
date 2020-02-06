@@ -33,6 +33,15 @@ var (
 		},
 		[]string{"zone", "client_country_name"},
 	)
+	httpBytes = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: namespace,
+			Subsystem: "zones",
+			Name:      "http_bytes_total",
+			Help:      "Number of HTTP bytes received by clients",
+		},
+		[]string{"zone", "client_country_name"},
+	)
 
 	// graphql metrics
 	cfScrapes = promauto.NewCounter(

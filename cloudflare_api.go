@@ -28,6 +28,7 @@ type httpRequestsResp struct {
 						ClientCountryName string `json:"clientCountryName"`
 						Requests          uint64 `json:"requests"`
 						Threats           uint64 `json:"threats"`
+						Bytes             uint64 `json:"bytes"`
 					} `json:"countryMap"`
 				} `json:"sum"`
 			} `json:"httpRequests1mGroups"`
