@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/go-kit/kit/log"
@@ -55,6 +56,8 @@ func main() {
 		analyticsAPIBaseURL: *cfAnalyticsAPIBaseURL,
 		scrapeTimeout:       time.Duration(*scrapeTimeoutSeconds) * time.Second,
 		scrapeInterval:      time.Duration(*cfScrapeIntervalSeconds) * time.Second,
+		logger:              logger,
+		scrapeLock:          &sync.Mutex{},
 	}
 
 	// TODO populate the build-time vars in
@@ -81,7 +84,7 @@ func main() {
 
 	cfScrapeCtx, cancelCfScrape := context.WithCancel(context.Background())
 	runGroup.Add(func() error {
-		return cfExporter.scrapeCloudflare(cfScrapeCtx, logger)
+		return cfExporter.scrapeCloudflare(cfScrapeCtx)
 	}, func(error) {
 		cancelCfScrape()
 	})
@@ -99,20 +102,23 @@ type exporter struct {
 	analyticsAPIBaseURL string
 	scrapeInterval      time.Duration
 	scrapeTimeout       time.Duration
+	logger              log.Logger
+
+	scrapeLock *sync.Mutex
 }
 
-func (e *exporter) scrapeCloudflare(ctx context.Context, logger log.Logger) error {
+func (e *exporter) scrapeCloudflare(ctx context.Context) error {
 	ticker := time.Tick(e.scrapeInterval)
 	for {
 		select {
 		case <-ticker:
-			if err := e.scrapeCloudflareOnce(ctx, logger); err != nil {
+			if err := e.scrapeCloudflareOnce(ctx); err != nil {
 				// Returning an error here would cause the exporter to crash. If it
 				// crashloops but prometheus manages to scrape it in between crashes, we
 				// might never notice that we are not updating our cached metrics.
 				// Instead, we should alert on the exporter_cloudflare_scrape_errors
 				// metric.
-				logger.Log("severity", "ERROR", "error", err)
+				e.logger.Log("severity", "ERROR", "error", err)
 			}
 		case <-ctx.Done():
 			return nil
@@ -120,14 +126,16 @@ func (e *exporter) scrapeCloudflare(ctx context.Context, logger log.Logger) erro
 	}
 }
 
-func (e *exporter) scrapeCloudflareOnce(ctx context.Context, logger log.Logger) (err error) {
+func (e *exporter) scrapeCloudflareOnce(ctx context.Context) (err error) {
 	defer func() {
 		if err != nil {
 			cfScrapeErrs.Inc()
 		}
 	}()
+	e.scrapeLock.Lock()
+	defer e.scrapeLock.Unlock()
 
-	logger.Log("msg", "scraping Cloudflare")
+	e.logger.Log("msg", "scraping Cloudflare")
 	cfScrapes.Inc()
 
 	ctx, cancel := context.WithTimeout(ctx, e.scrapeTimeout)
@@ -139,7 +147,12 @@ func (e *exporter) scrapeCloudflareOnce(ctx context.Context, logger log.Logger) 
 	}
 	zonesActive.Set(float64(len(zones)))
 
-	return e.getZoneAnalytics(ctx, zones)
+	if err := e.getZoneAnalytics(ctx, zones); err != nil {
+		return err
+	}
+
+	cfLastSuccessTimestampSeconds.Set(float64(time.Now().Unix()))
+	return nil
 }
 
 func (e *exporter) getZoneAnalytics(ctx context.Context, zones map[string]string) error {

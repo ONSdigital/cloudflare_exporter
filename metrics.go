@@ -34,21 +34,29 @@ var (
 		[]string{"zone", "client_country_name"},
 	)
 
-	// exporter metrics
+	// graphql metrics
 	cfScrapes = promauto.NewCounter(
 		prometheus.CounterOpts{
 			Namespace: namespace,
-			Subsystem: "exporter",
-			Name:      "graphql_scrapes_total",
+			Subsystem: "graphql",
+			Name:      "scrapes_total",
 			Help:      "Number of times this exporter has scraped cloudflare",
 		},
 	)
 	cfScrapeErrs = promauto.NewCounter(
 		prometheus.CounterOpts{
 			Namespace: namespace,
-			Subsystem: "exporter",
-			Name:      "graphql_scrape_errors_total",
+			Subsystem: "graphql",
+			Name:      "scrape_errors_total",
 			Help:      "Number of times this exporter has failed to scrape cloudflare",
+		},
+	)
+	cfLastSuccessTimestampSeconds = promauto.NewGauge(
+		prometheus.GaugeOpts{
+			Namespace: namespace,
+			Subsystem: "graphql",
+			Name:      "last_success_timestamp_seconds",
+			Help:      "Time that the analytics data was last updated.",
 		},
 	)
 )
