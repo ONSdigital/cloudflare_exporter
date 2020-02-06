@@ -121,6 +121,7 @@ func (e *exporter) scrapeCloudflare(ctx context.Context) error {
 		for country := range initialCountries {
 			httpRequests.WithLabelValues(zone, country)
 			httpThreats.WithLabelValues(zone, country)
+			httpBytes.WithLabelValues(zone, country)
 		}
 	}
 
@@ -226,6 +227,7 @@ query ($zones: [string!], $start_time: Time) {
             clientCountryName
             requests
             threats
+            bytes
           }
         }
       }
@@ -249,6 +251,8 @@ query ($zones: [string!], $start_time: Time) {
 					Add(float64(country.Requests))
 				httpThreats.WithLabelValues(zones[zone.ZoneTag], country.ClientCountryName).
 					Add(float64(country.Threats))
+				httpBytes.WithLabelValues(zones[zone.ZoneTag], country.ClientCountryName).
+					Add(float64(country.Bytes))
 			}
 		}
 	}
