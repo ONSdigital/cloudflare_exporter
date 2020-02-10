@@ -1,13 +1,67 @@
 ---
 stages:
   - test
+  - release
+
+variables:
+  GORELEASER_IMAGE: goreleaser/goreleaser:latest
+  DOCKER_REGISTRY: $CI_REGISTRY
+  DOCKER_USERNAME: gitlab-ci-token
+  DOCKER_PASSWORD: $CI_JOB_TOKEN
 
 test:
   stage: test
   image: golang:1.13-buster
   script: go test ./...
 
+go_mod_tidy:
+  stage: test
+  image: golang:1.13-buster
+  script:
+    - go mod tidy
+    - git diff --exit-code -- go.sum go.mod
+
 lint:
   stage: test
   image: golangci/golangci-lint:v1.23
   script: golangci-lint run -v
+
+build:
+  stage: test
+  image: docker:stable
+  # Avoid shallow clones to get tag changelogs.
+  variables:
+    GIT_DEPTH: 0
+  services:
+    - docker:dind
+  script: |
+    docker run --rm --privileged \
+      -v $PWD:/build \
+      -v /var/run/docker.sock:/var/run/docker.sock \
+      -w /build \
+      -e CI_REGISTRY_IMAGE \
+      $GORELEASER_IMAGE release --skip-publish --snapshot
+
+release:
+  stage: release
+  resource_group: release
+  image: docker:stable
+  # Avoid shallow clones to get tag changelogs.
+  variables:
+    GIT_DEPTH: 0
+  services:
+    - docker:dind
+  only:
+    refs:
+      - tags
+  script: |
+    docker run --rm --privileged \
+      -v $PWD:/build \
+      -v /var/run/docker.sock:/var/run/docker.sock \
+      -w /build \
+      -e CI_REGISTRY_IMAGE \
+      -e DOCKER_USERNAME \
+      -e DOCKER_PASSWORD \
+      -e DOCKER_REGISTRY \
+      -e GITLAB_TOKEN \
+      $GORELEASER_IMAGE release
