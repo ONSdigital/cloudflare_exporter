@@ -1,0 +1,77 @@
+{
+  "data": {
+    "viewer": {
+      "zones": [
+        {
+          "httpRequests1mGroups": [
+            {
+              "dimensions": {
+                "datetime": "2020-02-06T10:01:00Z"
+              },
+              "sum": {
+                "countryMap": [
+                  {
+                    "bytes": 100,
+                    "clientCountryName": "CZ",
+                    "requests": 1,
+                    "threats": 0
+                  },
+                  {
+                    "bytes": 200,
+                    "clientCountryName": "DE",
+                    "requests": 24,
+                    "threats": 0
+                  }
+                ]
+              }
+            },
+            {
+              "dimensions": {
+                "datetime": "2020-02-06T10:02:00Z"
+              },
+              "sum": {
+                "countryMap": [
+                  {
+                    "bytes": 300,
+                    "clientCountryName": "CZ",
+                    "requests": 2,
+                    "threats": 0
+                  },
+                  {
+                    "bytes": 400,
+                    "clientCountryName": "DE",
+                    "requests": 3,
+                    "threats": 1
+                  }
+                ]
+              }
+            },
+            {
+              "dimensions": {
+                "datetime": "2020-02-06T10:03:00Z"
+              },
+              "sum": {
+                "countryMap": [
+                  {
+                    "bytes": 100,
+                    "clientCountryName": "CZ",
+                    "requests": 1,
+                    "threats": 0
+                  },
+                  {
+                    "bytes": 200,
+                    "clientCountryName": "GB",
+                    "requests": 24,
+                    "threats": 0
+                  }
+                ]
+              }
+            }
+          ],
+          "zoneTag": "a-zone"
+        }
+      ]
+    }
+  },
+  "errors": null
+}

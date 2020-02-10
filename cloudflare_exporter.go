@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/go-kit/kit/log"
+	"github.com/go-kit/kit/log/level"
 	"github.com/machinebox/graphql"
 	"github.com/oklog/run"
 	"github.com/prometheus/client_golang/prometheus"
@@ -37,19 +38,19 @@ var (
 				Envar("CLOUDFLARE_SCRAPE_INTERVAL_MINUTES").Default("300").Int()
 	scrapeTimeoutSeconds = kingpin.Flag("scrape-timeout-seconds", "scrape timeout seconds").
 				Envar("CLOUDFLARE_EXPORTER_SCRAPE_TIMEOUT_SECONDS").Default("30").Int()
+	logLevel = kingpin.Flag("log-level", "log level").Envar("CLOUDFLARE_EXPORTER_LOG_LEVEL").Default("info").String()
 )
 
 func main() {
-	logLevel := &promlog.AllowedLevel{}
-	if err := logLevel.Set("debug"); err != nil {
+	kingpin.Parse()
+
+	loggerLogLevel := &promlog.AllowedLevel{}
+	if err := loggerLogLevel.Set(*logLevel); err != nil {
 		panic(err)
 	}
-	logConf := &promlog.Config{Level: logLevel, Format: &promlog.AllowedFormat{}}
-	logger := promlog.New(logConf)
-	logger = log.With(logger, "severity", "INFO")
-	logger.Log("msg", "starting")
-
-	kingpin.Parse()
+	logConf := &promlog.Config{Level: loggerLogLevel, Format: &promlog.AllowedFormat{}}
+	logger := level.Info(promlog.New(logConf))
+	logger.Log("msg", "starting cloudflare_exporter")
 
 	cfExporter := &exporter{
 		email: *cfEmail, apiKey: *cfAPIKey, apiBaseURL: *cfAPIBaseURL,
@@ -73,24 +74,27 @@ func main() {
 	logger.Log("msg", "listening", "addr", *listenAddress)
 	serverSocket, err := net.Listen("tcp", *listenAddress)
 	if err != nil {
-		logger.Log("severity", "ERROR", "error", err)
+		level.Error(logger).Log("error", err)
 		os.Exit(1)
 	}
 	runGroup.Add(func() error {
 		return http.Serve(serverSocket, router)
 	}, func(error) {
+		logger.Log("msg", "closing server socket")
 		serverSocket.Close()
 	})
 
 	cfScrapeCtx, cancelCfScrape := context.WithCancel(context.Background())
 	runGroup.Add(func() error {
+		logger.Log("msg", "starting Cloudflare scrape loop")
 		return cfExporter.scrapeCloudflare(cfScrapeCtx)
 	}, func(error) {
+		logger.Log("msg", "ending Cloudflare scrape loop")
 		cancelCfScrape()
 	})
 
 	if err := runGroup.Run(); err != nil {
-		logger.Log("severity", "ERROR", "error", err)
+		level.Error(logger).Log("error", err)
 		os.Exit(1)
 	}
 }
@@ -104,11 +108,15 @@ type exporter struct {
 	scrapeTimeout  time.Duration
 	logger         log.Logger
 
-	scrapeLock *sync.Mutex
+	scrapeLock           *sync.Mutex
+	lastDateTimesCounted struct {
+		httpReqsByCountryByZone map[string]time.Time
+	}
 }
 
 func (e *exporter) scrapeCloudflare(ctx context.Context) error {
-	e.logger.Log("msg", "collecting initial country list")
+	initialCountryListStart := time.Now()
+	e.logger.Log("event", "collecting_initial_country_list", "msg", "starting")
 	initialZones, err := e.getZones(ctx)
 	if err != nil {
 		return err
@@ -124,6 +132,8 @@ func (e *exporter) scrapeCloudflare(ctx context.Context) error {
 			httpBytes.WithLabelValues(zone, country)
 		}
 	}
+	initialCountryListDuration := float64(time.Since(initialCountryListStart)) / float64(time.Second)
+	e.logger.Log("event", "collecting_initial_country_list", "msg", "finished", "duration", initialCountryListDuration)
 
 	ticker := time.Tick(e.scrapeInterval)
 	for {
@@ -135,7 +145,8 @@ func (e *exporter) scrapeCloudflare(ctx context.Context) error {
 				// might never notice that we are not updating our cached metrics.
 				// Instead, we should alert on the exporter_cloudflare_scrape_errors
 				// metric.
-				e.logger.Log("severity", "ERROR", "error", err)
+				level.Error(e.logger).Log("error", err)
+				cfScrapeErrs.Inc()
 			}
 		case <-ctx.Done():
 			return nil
@@ -143,16 +154,14 @@ func (e *exporter) scrapeCloudflare(ctx context.Context) error {
 	}
 }
 
-func (e *exporter) scrapeCloudflareOnce(ctx context.Context) (err error) {
-	defer func() {
-		if err != nil {
-			cfScrapeErrs.Inc()
-		}
-	}()
+func (e *exporter) scrapeCloudflareOnce(ctx context.Context) error {
 	e.scrapeLock.Lock()
 	defer e.scrapeLock.Unlock()
 
-	e.logger.Log("msg", "scraping Cloudflare")
+	logger := log.With(e.logger, "event", "scraping_cloudflare")
+	start := time.Now()
+
+	logger.Log("msg", "starting")
 	cfScrapes.Inc()
 
 	ctx, cancel := context.WithTimeout(ctx, e.scrapeTimeout)
@@ -169,6 +178,9 @@ func (e *exporter) scrapeCloudflareOnce(ctx context.Context) (err error) {
 	}
 
 	cfLastSuccessTimestampSeconds.Set(float64(time.Now().Unix()))
+
+	duration := float64(time.Since(start)) / float64(time.Second)
+	logger.Log("msg", "finished", "duration", duration)
 	return nil
 }
 
@@ -220,8 +232,7 @@ query ($zones: [string!], $start_time: Time) {
     zones(filter: {zoneTag_in: $zones}) {
       zoneTag
 
-			# Assume we don't have >10k countries, and won't need to paginate.
-      httpRequests1mGroups(limit: 10000, filter: {datetime_gt: $start_time}) {
+      httpRequests1mGroups(limit: 10000, filter: {datetime_gt: $start_time}, orderBy: [datetime_ASC]) {
         sum {
           countryMap {
             clientCountryName
@@ -230,14 +241,30 @@ query ($zones: [string!], $start_time: Time) {
             bytes
           }
         }
+        dimensions {
+          datetime
+        }
       }
     }
   }
 }
 	`)
 
+	// We add a few minutes to the scrape interval so that the first few buckets
+	// returned are the same as the last few in the previous scrape. By keeping
+	// track of the last bucket time counted, we can be sure not to double count
+	// or miss buckets. However, on the first scrape, we don't know how long the
+	// exporter has been down. Not using a grace time errs on the side of missing
+	// metrics rather than double counting, but this is arbitrary.
+	graceTime := time.Minute * 5
+	if e.lastDateTimesCounted.httpReqsByCountryByZone == nil {
+		e.logger.Log("msg", "first scrape, not using grace time")
+		graceTime = 0
+		e.lastDateTimesCounted.httpReqsByCountryByZone = map[string]time.Time{}
+	}
+
 	req.Var("zones", keys(zones))
-	req.Var("start_time", time.Now().Add(-e.scrapeInterval))
+	req.Var("start_time", time.Now().Add(-(e.scrapeInterval + graceTime)))
 
 	var gqlResp httpRequestsResp
 	if err := e.makeGraphqlRequest(ctx, req, &gqlResp); err != nil {
@@ -245,15 +272,21 @@ query ($zones: [string!], $start_time: Time) {
 	}
 
 	for _, zone := range gqlResp.Viewer.Zones {
-		for _, reqGroup := range zone.ReqGroups {
-			for _, country := range reqGroup.Sum.CountryMap {
-				httpRequests.WithLabelValues(zones[zone.ZoneTag], country.ClientCountryName).
-					Add(float64(country.Requests))
-				httpThreats.WithLabelValues(zones[zone.ZoneTag], country.ClientCountryName).
-					Add(float64(country.Threats))
-				httpBytes.WithLabelValues(zones[zone.ZoneTag], country.ClientCountryName).
-					Add(float64(country.Bytes))
-			}
+		debugLogger := level.Debug(log.With(e.logger, "zone", zones[zone.ZoneTag], "action", "parse_zones"))
+		debugLogger.Log("msg", "starting", "last_datetime_bucket", e.lastDateTimesCounted.httpReqsByCountryByZone[zone.ZoneTag])
+		countries, lastDateTimeCounted, err := extractZoneHTTPRequests(zone.ReqGroups, e.lastDateTimesCounted.httpReqsByCountryByZone[zone.ZoneTag])
+		if err != nil {
+			return err
+		}
+		e.lastDateTimesCounted.httpReqsByCountryByZone[zone.ZoneTag] = lastDateTimeCounted
+		debugLogger.Log("msg", "finished", "last_datetime_bucket", lastDateTimeCounted.String())
+		for country, countryData := range countries {
+			httpRequests.WithLabelValues(zones[zone.ZoneTag], country).
+				Add(float64(countryData.requests))
+			httpThreats.WithLabelValues(zones[zone.ZoneTag], country).
+				Add(float64(countryData.threats))
+			httpBytes.WithLabelValues(zones[zone.ZoneTag], country).
+				Add(float64(countryData.bytes))
 		}
 	}
 
