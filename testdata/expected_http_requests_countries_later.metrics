@@ -5,9 +5,9 @@ cloudflare_zones_http_bytes_total{client_country_name="DE",zone="a-zone-name"} 4
 cloudflare_zones_http_bytes_total{client_country_name="GB",zone="a-zone-name"} 200
 # HELP cloudflare_zones_http_requests_total Number of HTTP requests made by clients
 # TYPE cloudflare_zones_http_requests_total counter
-cloudflare_zones_http_requests_total{client_country_name="CZ",zone="a-zone-name"} 3
-cloudflare_zones_http_requests_total{client_country_name="DE",zone="a-zone-name"} 3
-cloudflare_zones_http_requests_total{client_country_name="GB",zone="a-zone-name"} 24
+cloudflare_zones_http_requests_total{client_country_name="CZ",client_http_protocol="",edge_response_status="",threat_pathing_name="",zone="a-zone-name"} 3
+cloudflare_zones_http_requests_total{client_country_name="DE",client_http_protocol="",edge_response_status="",threat_pathing_name="",zone="a-zone-name"} 3
+cloudflare_zones_http_requests_total{client_country_name="GB",client_http_protocol="",edge_response_status="",threat_pathing_name="",zone="a-zone-name"} 24
 # HELP cloudflare_zones_http_threats_total Number of HTTP threats made by clients
 # TYPE cloudflare_zones_http_threats_total counter
 cloudflare_zones_http_threats_total{client_country_name="CZ",zone="a-zone-name"} 0

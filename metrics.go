@@ -9,6 +9,8 @@ var (
 	httpRequests                  *prometheus.CounterVec
 	httpThreats                   *prometheus.CounterVec
 	httpBytes                     *prometheus.CounterVec
+	httpCachedRequests            *prometheus.CounterVec
+	httpCachedBytes               *prometheus.CounterVec
 	cfScrapes                     prometheus.Counter
 	cfScrapeErrs                  prometheus.Counter
 	cfLastSuccessTimestampSeconds prometheus.Gauge
@@ -31,7 +33,7 @@ func registerMetrics(reg prometheus.Registerer) {
 			Name:      "http_requests_total",
 			Help:      "Number of HTTP requests made by clients",
 		},
-		[]string{"zone", "client_country_name"},
+		[]string{"zone", "client_country_name", "client_http_protocol", "edge_response_status", "threat_pathing_name"},
 	)
 	httpThreats = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
@@ -50,6 +52,24 @@ func registerMetrics(reg prometheus.Registerer) {
 			Help:      "Number of HTTP bytes received by clients",
 		},
 		[]string{"zone", "client_country_name"},
+	)
+	httpCachedRequests = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: namespace,
+			Subsystem: "zones",
+			Name:      "http_cached_requests_total",
+			Help:      "Number of cached HTTP requests served.",
+		},
+		[]string{"zone"},
+	)
+	httpCachedBytes = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: namespace,
+			Subsystem: "zones",
+			Name:      "http_cached_bytes_total",
+			Help:      "Number of cached HTTP bytes served.",
+		},
+		[]string{"zone"},
 	)
 
 	// graphql metrics
@@ -85,6 +105,8 @@ func registerMetrics(reg prometheus.Registerer) {
 	reg.MustRegister(httpRequests)
 	reg.MustRegister(httpThreats)
 	reg.MustRegister(httpBytes)
+	reg.MustRegister(httpCachedRequests)
+	reg.MustRegister(httpCachedBytes)
 	reg.MustRegister(cfScrapes)
 	reg.MustRegister(cfScrapeErrs)
 	reg.MustRegister(cfLastSuccessTimestampSeconds)

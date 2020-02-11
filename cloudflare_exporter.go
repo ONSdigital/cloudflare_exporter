@@ -134,7 +134,7 @@ func (e *exporter) scrapeCloudflare(ctx context.Context) error {
 	}
 	for _, zone := range initialZones {
 		for country := range initialCountries {
-			httpRequests.WithLabelValues(zone, country)
+			httpRequests.WithLabelValues(zone, country, "", "", "")
 			httpThreats.WithLabelValues(zone, country)
 			httpBytes.WithLabelValues(zone, country)
 		}
@@ -254,6 +254,20 @@ query ($zone: String!, $start_time: Time!, $limit: Int!) {
             threats
             bytes
           }
+          cachedRequests
+          cachedBytes
+          clientHTTPVersionMap{
+            clientHTTPProtocol
+            requests
+          }
+          responseStatusMap{
+            edgeResponseStatus
+            requests
+          }
+          threatPathingMap{
+            requests
+            threatPathingName
+          }
         }
         dimensions {
           datetime
@@ -295,19 +309,35 @@ query ($zone: String!, $start_time: Time!, $limit: Int!) {
 				return fmt.Errorf("expected 1 zone (%s), got %d", zoneName, len(gqlResp.Viewer.Zones))
 			}
 			zone := gqlResp.Viewer.Zones[0]
-			countries, lastDateTimeCounted, err := extractZoneHTTPRequests(zone.ReqGroups, lastDateTimeCounted)
+			httpData, lastDateTimeCounted, err := extractZoneHTTPRequests(zone.ReqGroups, lastDateTimeCounted)
 			if err != nil {
 				return err
 			}
 			e.lastSeenBucketTimes.httpReqsByZone[zone.ZoneTag] = lastDateTimeCounted
 			debugLogger.Log("msg", "finished", "last_datetime_bucket", lastDateTimeCounted.String())
-			for country, countryData := range countries {
-				httpRequests.WithLabelValues(zones[zone.ZoneTag], country).
+			for country, countryData := range httpData.countries {
+				httpRequests.WithLabelValues(zones[zone.ZoneTag], country, "", "", "").
 					Add(float64(countryData.requests))
 				httpThreats.WithLabelValues(zones[zone.ZoneTag], country).
 					Add(float64(countryData.threats))
 				httpBytes.WithLabelValues(zones[zone.ZoneTag], country).
 					Add(float64(countryData.bytes))
+			}
+
+			httpCachedRequests.WithLabelValues(zones[zone.ZoneTag]).Add(float64(httpData.cachedRequests))
+			httpCachedBytes.WithLabelValues(zones[zone.ZoneTag]).Add(float64(httpData.cachedBytes))
+
+			for httpVersion, reqs := range httpData.httpVersions {
+				httpRequests.WithLabelValues(zones[zone.ZoneTag], "", httpVersion, "", "").Add(float64(reqs))
+			}
+
+			for responseStatus, reqs := range httpData.responseStatuses {
+				httpRequests.WithLabelValues(zones[zone.ZoneTag], "", "", fmt.Sprintf("%d", responseStatus), "").
+					Add(float64(reqs))
+			}
+
+			for threatPath, reqs := range httpData.threatPaths {
+				httpRequests.WithLabelValues(zones[zone.ZoneTag], "", "", "", threatPath).Add(float64(reqs))
 			}
 
 			if len(zone.ReqGroups) < apiMaxLimit {

@@ -20,27 +20,56 @@ func parseZoneIDs(apiRespBody io.Reader) (map[string]string, error) {
 	return zones, nil
 }
 
-func extractZoneHTTPRequests(zoneCounts []httpRequests1mGroupsResp, lastDateTimeCounted time.Time) (map[string]*countryRequestData, time.Time, error) {
-	countries := map[string]*countryRequestData{}
+func extractZoneHTTPRequests(zoneCounts []httpRequests1mGroupsResp, lastDateTimeCounted time.Time) (httpRequestsData, time.Time, error) {
+	data := httpRequestsData{
+		countries:        map[string]*countryRequestData{},
+		httpVersions:     map[string]uint64{},
+		responseStatuses: map[int]uint64{},
+		threatPaths:      map[string]uint64{},
+	}
 	for _, timeBucket := range zoneCounts {
 		bucketTime, err := time.Parse(time.RFC3339, timeBucket.Dimensions.Datetime)
 		if err != nil {
-			return nil, time.Time{}, err
+			return httpRequestsData{}, time.Time{}, err
 		}
 
 		if bucketTime.After(lastDateTimeCounted) {
 			lastDateTimeCounted = bucketTime
 			for _, countryData := range timeBucket.Sum.CountryMap {
-				if _, ok := countries[countryData.ClientCountryName]; !ok {
-					countries[countryData.ClientCountryName] = &countryRequestData{}
+				if _, ok := data.countries[countryData.ClientCountryName]; !ok {
+					data.countries[countryData.ClientCountryName] = &countryRequestData{}
 				}
-				countries[countryData.ClientCountryName].requests += countryData.Requests
-				countries[countryData.ClientCountryName].threats += countryData.Threats
-				countries[countryData.ClientCountryName].bytes += countryData.Bytes
+				data.countries[countryData.ClientCountryName].requests += countryData.Requests
+				data.countries[countryData.ClientCountryName].threats += countryData.Threats
+				data.countries[countryData.ClientCountryName].bytes += countryData.Bytes
+			}
+
+			data.cachedRequests += timeBucket.Sum.CachedRequests
+			data.cachedBytes += timeBucket.Sum.CachedBytes
+
+			for _, httpVersionData := range timeBucket.Sum.ClientHTTPVersionMap {
+				if _, ok := data.httpVersions[httpVersionData.ClientHTTPProtocol]; !ok {
+					data.httpVersions[httpVersionData.ClientHTTPProtocol] = 0
+				}
+				data.httpVersions[httpVersionData.ClientHTTPProtocol] += httpVersionData.Requests
+			}
+
+			for _, responseStatusData := range timeBucket.Sum.ResponseStatusMap {
+				if _, ok := data.responseStatuses[responseStatusData.EdgeResponseStatus]; !ok {
+					data.responseStatuses[responseStatusData.EdgeResponseStatus] = 0
+				}
+				data.responseStatuses[responseStatusData.EdgeResponseStatus] += responseStatusData.Requests
+			}
+
+			for _, threatPathData := range timeBucket.Sum.ThreatPathingMap {
+				if _, ok := data.threatPaths[threatPathData.ThreatPathingName]; !ok {
+					data.threatPaths[threatPathData.ThreatPathingName] = 0
+				}
+				data.threatPaths[threatPathData.ThreatPathingName] += threatPathData.Requests
 			}
 		}
 	}
-	return countries, lastDateTimeCounted, nil
+	return data, lastDateTimeCounted, nil
 }
 
 type httpRequestsResp struct {
@@ -63,6 +92,20 @@ type httpRequests1mGroupsResp struct {
 			Threats           uint64 `json:"threats"`
 			Bytes             uint64 `json:"bytes"`
 		} `json:"countryMap"`
+		CachedBytes          uint64 `json:"cachedBytes"`
+		CachedRequests       uint64 `json:"cachedRequests"`
+		ClientHTTPVersionMap []struct {
+			ClientHTTPProtocol string `json:"clientHTTPProtocol"`
+			Requests           uint64 `json:"requests"`
+		} `json:"clientHTTPVersionMap"`
+		ResponseStatusMap []struct {
+			EdgeResponseStatus int    `json:"edgeResponseStatus"`
+			Requests           uint64 `json:"requests"`
+		} `json:"responseStatusMap"`
+		ThreatPathingMap []struct {
+			ThreatPathingName string `json:"threatPathingName"`
+			Requests          uint64 `json:"requests"`
+		} `json:"threatPathingMap"`
 	} `json:"sum"`
 }
 
@@ -72,6 +115,15 @@ type zonesResp struct {
 		Name   string `json:"name"`
 		Status string `json:"status"`
 	} `json:"result"`
+}
+
+type httpRequestsData struct {
+	countries        map[string]*countryRequestData
+	httpVersions     map[string]uint64
+	responseStatuses map[int]uint64
+	threatPaths      map[string]uint64
+	cachedRequests   uint64
+	cachedBytes      uint64
 }
 
 type countryRequestData struct {
