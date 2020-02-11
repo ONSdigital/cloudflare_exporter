@@ -49,12 +49,7 @@ var (
 func main() {
 	kingpin.Parse()
 
-	loggerLogLevel := &promlog.AllowedLevel{}
-	if err := loggerLogLevel.Set(*logLevel); err != nil {
-		panic(err)
-	}
-	logConf := &promlog.Config{Level: loggerLogLevel, Format: &promlog.AllowedFormat{}}
-	logger := level.Info(promlog.New(logConf))
+	logger := newPromLogger(*logLevel)
 	logger.Log("msg", "starting cloudflare_exporter")
 
 	cfExporter := &exporter{
@@ -70,6 +65,7 @@ func main() {
 	// https://github.com/prometheus/common/blob/master/version/info.go with
 	// goreleaser or something.
 	prometheus.MustRegister(version.NewCollector("cloudflare_exporter"))
+	registerMetrics(nil)
 
 	router := http.NewServeMux()
 	router.Handle("/metrics", promhttp.Handler())
@@ -108,15 +104,21 @@ type exporter struct {
 	email          string
 	apiKey         string
 	apiBaseURL     string
-	graphqlClient  *graphql.Client
+	graphqlClient  graphqlClient
 	scrapeInterval time.Duration
 	scrapeTimeout  time.Duration
 	logger         log.Logger
 
-	scrapeLock           *sync.Mutex
-	lastDateTimesCounted struct {
-		httpReqsByCountryByZone map[string]time.Time
-	}
+	scrapeLock          *sync.Mutex
+	lastSeenBucketTimes lastUpdatedTimes
+}
+
+type lastUpdatedTimes struct {
+	httpReqsByZone map[string]time.Time
+}
+
+type graphqlClient interface {
+	Run(context.Context, *graphql.Request, interface{}) error
 }
 
 func (e *exporter) scrapeCloudflare(ctx context.Context) error {
@@ -262,19 +264,19 @@ query ($zone: String!, $start_time: Time!, $limit: Int!) {
 }
 	`)
 
-	if e.lastDateTimesCounted.httpReqsByCountryByZone == nil {
+	if e.lastSeenBucketTimes.httpReqsByZone == nil {
 		e.logger.Log("msg", "first scrape, initialising last scrape times")
-		e.lastDateTimesCounted.httpReqsByCountryByZone = map[string]time.Time{}
+		e.lastSeenBucketTimes.httpReqsByZone = map[string]time.Time{}
 		now := time.Now()
 		for zoneID := range zones {
-			e.lastDateTimesCounted.httpReqsByCountryByZone[zoneID] = now.Add(-e.scrapeInterval)
+			e.lastSeenBucketTimes.httpReqsByZone[zoneID] = now.Add(-e.scrapeInterval)
 		}
 	}
 
 	for zoneID, zoneName := range zones {
 		debugLogger := level.Debug(log.With(e.logger, "zone", zoneName, "event", "scrape_zone"))
 		for {
-			lastDateTimeCounted := e.lastDateTimesCounted.httpReqsByCountryByZone[zoneID]
+			lastDateTimeCounted := e.lastSeenBucketTimes.httpReqsByZone[zoneID]
 			debugLogger.Log("msg", "starting", "last_datetime_bucket", lastDateTimeCounted.String())
 			httpReqsGqlReq.Var("zone", zoneID)
 			// Add some grace time so that adjacent polling loops overlap in query
@@ -297,7 +299,7 @@ query ($zone: String!, $start_time: Time!, $limit: Int!) {
 			if err != nil {
 				return err
 			}
-			e.lastDateTimesCounted.httpReqsByCountryByZone[zone.ZoneTag] = lastDateTimeCounted
+			e.lastSeenBucketTimes.httpReqsByZone[zone.ZoneTag] = lastDateTimeCounted
 			debugLogger.Log("msg", "finished", "last_datetime_bucket", lastDateTimeCounted.String())
 			for country, countryData := range countries {
 				httpRequests.WithLabelValues(zones[zone.ZoneTag], country).
@@ -349,6 +351,15 @@ func (e *exporter) getZones(ctx context.Context) (map[string]string, error) {
 		return nil, err
 	}
 	return zones, nil
+}
+
+func newPromLogger(logLevel string) log.Logger {
+	loggerLogLevel := &promlog.AllowedLevel{}
+	if err := loggerLogLevel.Set(logLevel); err != nil {
+		panic(err)
+	}
+	logConf := &promlog.Config{Level: loggerLogLevel, Format: &promlog.AllowedFormat{}}
+	return level.Info(promlog.New(logConf))
 }
 
 func keys(dict map[string]string) []string {
