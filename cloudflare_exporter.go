@@ -20,7 +20,10 @@ import (
 	"gopkg.in/alecthomas/kingpin.v2"
 )
 
-const namespace = "cloudflare"
+const (
+	namespace   = "cloudflare"
+	apiMaxLimit = 10000
+)
 
 var (
 	// arguments
@@ -38,7 +41,9 @@ var (
 				Envar("CLOUDFLARE_SCRAPE_INTERVAL_MINUTES").Default("300").Int()
 	scrapeTimeoutSeconds = kingpin.Flag("scrape-timeout-seconds", "scrape timeout seconds").
 				Envar("CLOUDFLARE_EXPORTER_SCRAPE_TIMEOUT_SECONDS").Default("30").Int()
-	logLevel = kingpin.Flag("log-level", "log level").Envar("CLOUDFLARE_EXPORTER_LOG_LEVEL").Default("info").String()
+	logLevel                 = kingpin.Flag("log-level", "log level").Envar("CLOUDFLARE_EXPORTER_LOG_LEVEL").Default("info").String()
+	initialScrapeImmediately = kingpin.Flag("initial-scrape-immediately", "Scrape Cloudflare immediately at startup, or wait scrape-timeout-seconds. For development only.").
+					Hidden().Envar("CLOUDFLARE_EXPORTER_INITIAL_SCRPAE_IMMEDIATELY").Default("false").Bool()
 )
 
 func main() {
@@ -135,6 +140,14 @@ func (e *exporter) scrapeCloudflare(ctx context.Context) error {
 	initialCountryListDuration := float64(time.Since(initialCountryListStart)) / float64(time.Second)
 	e.logger.Log("event", "collecting_initial_country_list", "msg", "finished", "duration", initialCountryListDuration)
 
+	if *initialScrapeImmediately {
+		// Initial scrape, the ticker below won't fire straight away.
+		// Risks double counting on restart. Only useful for development.
+		if err := e.scrapeCloudflareOnce(ctx); err != nil {
+			level.Error(e.logger).Log("error", err)
+			cfScrapeErrs.Inc()
+		}
+	}
 	ticker := time.Tick(e.scrapeInterval)
 	for {
 		select {
@@ -186,13 +199,12 @@ func (e *exporter) scrapeCloudflareOnce(ctx context.Context) error {
 
 func (e *exporter) getInitialCountries(ctx context.Context, zones map[string]string) (map[string]struct{}, error) {
 	req := graphql.NewRequest(`
-query ($zones: [string!], $start_time: Time) {
+query ($zones: [String!], $start_time: Time!, $limit: Int!) {
   viewer {
     zones(filter: {zoneTag_in: $zones}) {
       zoneTag
 
-      # Assume we don't have >10k countries, and won't need to paginate.
-      httpRequests1mGroups(limit: 10000, filter: {datetime_gt: $start_time}) {
+      httpRequests1mGroups(limit: $limit, filter: {datetime_gt: $start_time}) {
         sum {
           countryMap {
             clientCountryName
@@ -226,13 +238,13 @@ query ($zones: [string!], $start_time: Time) {
 }
 
 func (e *exporter) getZoneAnalytics(ctx context.Context, zones map[string]string) error {
-	req := graphql.NewRequest(`
-query ($zones: [string!], $start_time: Time) {
+	httpReqsGqlReq := graphql.NewRequest(`
+query ($zone: String!, $start_time: Time!, $limit: Int!) {
   viewer {
-    zones(filter: {zoneTag_in: $zones}) {
+    zones(filter: {zoneTag: $zone}) {
       zoneTag
 
-      httpRequests1mGroups(limit: 10000, filter: {datetime_gt: $start_time}, orderBy: [datetime_ASC]) {
+      httpRequests1mGroups(limit: $limit, filter: {datetime_gt: $start_time}, orderBy: [datetime_ASC]) {
         sum {
           countryMap {
             clientCountryName
@@ -250,43 +262,55 @@ query ($zones: [string!], $start_time: Time) {
 }
 	`)
 
-	// We add a few minutes to the scrape interval so that the first few buckets
-	// returned are the same as the last few in the previous scrape. By keeping
-	// track of the last bucket time counted, we can be sure not to double count
-	// or miss buckets. However, on the first scrape, we don't know how long the
-	// exporter has been down. Not using a grace time errs on the side of missing
-	// metrics rather than double counting, but this is arbitrary.
-	graceTime := time.Minute * 5
 	if e.lastDateTimesCounted.httpReqsByCountryByZone == nil {
-		e.logger.Log("msg", "first scrape, not using grace time")
-		graceTime = 0
+		e.logger.Log("msg", "first scrape, initialising last scrape times")
 		e.lastDateTimesCounted.httpReqsByCountryByZone = map[string]time.Time{}
-	}
-
-	req.Var("zones", keys(zones))
-	req.Var("start_time", time.Now().Add(-(e.scrapeInterval + graceTime)))
-
-	var gqlResp httpRequestsResp
-	if err := e.makeGraphqlRequest(ctx, req, &gqlResp); err != nil {
-		return err
-	}
-
-	for _, zone := range gqlResp.Viewer.Zones {
-		debugLogger := level.Debug(log.With(e.logger, "zone", zones[zone.ZoneTag], "action", "parse_zones"))
-		debugLogger.Log("msg", "starting", "last_datetime_bucket", e.lastDateTimesCounted.httpReqsByCountryByZone[zone.ZoneTag])
-		countries, lastDateTimeCounted, err := extractZoneHTTPRequests(zone.ReqGroups, e.lastDateTimesCounted.httpReqsByCountryByZone[zone.ZoneTag])
-		if err != nil {
-			return err
+		now := time.Now()
+		for zoneID := range zones {
+			e.lastDateTimesCounted.httpReqsByCountryByZone[zoneID] = now.Add(-e.scrapeInterval)
 		}
-		e.lastDateTimesCounted.httpReqsByCountryByZone[zone.ZoneTag] = lastDateTimeCounted
-		debugLogger.Log("msg", "finished", "last_datetime_bucket", lastDateTimeCounted.String())
-		for country, countryData := range countries {
-			httpRequests.WithLabelValues(zones[zone.ZoneTag], country).
-				Add(float64(countryData.requests))
-			httpThreats.WithLabelValues(zones[zone.ZoneTag], country).
-				Add(float64(countryData.threats))
-			httpBytes.WithLabelValues(zones[zone.ZoneTag], country).
-				Add(float64(countryData.bytes))
+	}
+
+	for zoneID, zoneName := range zones {
+		debugLogger := level.Debug(log.With(e.logger, "zone", zoneName, "event", "scrape_zone"))
+		for {
+			lastDateTimeCounted := e.lastDateTimesCounted.httpReqsByCountryByZone[zoneID]
+			debugLogger.Log("msg", "starting", "last_datetime_bucket", lastDateTimeCounted.String())
+			httpReqsGqlReq.Var("zone", zoneID)
+			// Add some grace time so that adjacent polling loops overlap in query
+			// range, to avoid missing metrics. When we come to extract the zone data,
+			// we exclude time buckets that occur before the lastDateTimeCounted,
+			// avoiding double counting.
+			httpReqsGqlReq.Var("start_time", lastDateTimeCounted.Add(-5*time.Minute))
+			var gqlResp httpRequestsResp
+			if err := e.makeGraphqlRequest(ctx, httpReqsGqlReq, &gqlResp); err != nil {
+				return err
+			}
+
+			if len(gqlResp.Viewer.Zones) != 1 {
+				// The response length should only be zero if the zone has disappeared
+				// since querying for them in this polling loop, and should never be >=2.
+				return fmt.Errorf("expected 1 zone (%s), got %d", zoneName, len(gqlResp.Viewer.Zones))
+			}
+			zone := gqlResp.Viewer.Zones[0]
+			countries, lastDateTimeCounted, err := extractZoneHTTPRequests(zone.ReqGroups, lastDateTimeCounted)
+			if err != nil {
+				return err
+			}
+			e.lastDateTimesCounted.httpReqsByCountryByZone[zone.ZoneTag] = lastDateTimeCounted
+			debugLogger.Log("msg", "finished", "last_datetime_bucket", lastDateTimeCounted.String())
+			for country, countryData := range countries {
+				httpRequests.WithLabelValues(zones[zone.ZoneTag], country).
+					Add(float64(countryData.requests))
+				httpThreats.WithLabelValues(zones[zone.ZoneTag], country).
+					Add(float64(countryData.threats))
+				httpBytes.WithLabelValues(zones[zone.ZoneTag], country).
+					Add(float64(countryData.bytes))
+			}
+
+			if len(zone.ReqGroups) < apiMaxLimit {
+				break
+			}
 		}
 	}
 
@@ -296,6 +320,7 @@ query ($zones: [string!], $start_time: Time) {
 func (e *exporter) makeGraphqlRequest(ctx context.Context, req *graphql.Request, resp interface{}) error {
 	req.Header.Set("X-AUTH-EMAIL", e.email)
 	req.Header.Set("X-AUTH-KEY", e.apiKey)
+	req.Var("limit", apiMaxLimit)
 	return e.graphqlClient.Run(ctx, req, &resp)
 }
 

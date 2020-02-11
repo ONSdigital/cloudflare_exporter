@@ -1,0 +1,13 @@
+{
+  "data": {
+    "viewer": {
+      "zones": [
+        {
+          "httpRequests1mGroups": [],
+          "zoneTag": "a-zone"
+        }
+      ]
+    }
+  },
+  "errors": null
+}

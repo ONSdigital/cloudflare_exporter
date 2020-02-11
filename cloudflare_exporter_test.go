@@ -62,3 +62,18 @@ func TestExtractZoneHTTPRequests(t *testing.T) {
 		}))
 	}
 }
+
+func TestExtractZoneHTTPRequests_ReturnsUnmodifiedLastDateTimeCountedWhenNoDataReturned(t *testing.T) {
+	testDataFile, err := os.Open("testdata/empty_http_reqs_by_country_resp.json")
+	require.Nil(t, err)
+	defer testDataFile.Close()
+
+	var gqlResp map[string]httpRequestsResp
+	require.Nil(t, json.NewDecoder(testDataFile).Decode(&gqlResp))
+
+	lastDateTimeCounted := time.Now()
+
+	_, newLastDateTime, err := extractZoneHTTPRequests(gqlResp["data"].Viewer.Zones[0].ReqGroups, lastDateTimeCounted)
+	require.Nil(t, err)
+	assert.Equal(t, newLastDateTime, lastDateTimeCounted)
+}
