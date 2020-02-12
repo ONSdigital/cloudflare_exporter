@@ -9,6 +9,18 @@
                 "datetime": "2020-02-06T10:01:00Z"
               },
               "sum": {
+                "cachedBytes": 1,
+                "cachedRequests": 2,
+                "clientHTTPVersionMap": [
+                  {
+                    "clientHTTPProtocol": "HTTP/1.1",
+                    "requests": 3
+                  },
+                  {
+                    "clientHTTPProtocol": "HTTP/2",
+                    "requests": 4
+                  }
+                ],
                 "countryMap": [
                   {
                     "bytes": 100,
@@ -22,6 +34,22 @@
                     "requests": 24,
                     "threats": 0
                   }
+                ],
+                "responseStatusMap": [
+                  {
+                    "edgeResponseStatus": 200,
+                    "requests": 1
+                  },
+                  {
+                    "edgeResponseStatus": 404,
+                    "requests": 2
+                  }
+                ],
+                "threatPathingMap": [
+                  {
+                    "threatPathingName": "a-threat",
+                    "requests": 10
+                  }
                 ]
               }
             },
@@ -30,6 +58,18 @@
                 "datetime": "2020-02-06T10:02:00Z"
               },
               "sum": {
+                "cachedBytes": 2,
+                "cachedRequests": 3,
+                "clientHTTPVersionMap": [
+                  {
+                    "clientHTTPProtocol": "HTTP/1.1",
+                    "requests": 4
+                  },
+                  {
+                    "clientHTTPProtocol": "HTTP/2",
+                    "requests": 5
+                  }
+                ],
                 "countryMap": [
                   {
                     "bytes": 300,
@@ -43,7 +83,18 @@
                     "requests": 3,
                     "threats": 1
                   }
-                ]
+                ],
+                "responseStatusMap": [
+                  {
+                    "edgeResponseStatus": 200,
+                    "requests": 2
+                  },
+                  {
+                    "edgeResponseStatus": 404,
+                    "requests": 3
+                  }
+                ],
+                "threatPathingMap": []
               }
             },
             {
@@ -51,6 +102,18 @@
                 "datetime": "2020-02-06T10:03:00Z"
               },
               "sum": {
+                "cachedBytes": 3,
+                "cachedRequests": 4,
+                "clientHTTPVersionMap": [
+                  {
+                    "clientHTTPProtocol": "HTTP/1.1",
+                    "requests": 5
+                  },
+                  {
+                    "clientHTTPProtocol": "HTTP/2",
+                    "requests": 6
+                  }
+                ],
                 "countryMap": [
                   {
                     "bytes": 100,
@@ -64,7 +127,18 @@
                     "requests": 24,
                     "threats": 0
                   }
-                ]
+                ],
+                "responseStatusMap": [
+                  {
+                    "edgeResponseStatus": 200,
+                    "requests": 3
+                  },
+                  {
+                    "edgeResponseStatus": 404,
+                    "requests": 4
+                  }
+                ],
+                "threatPathingMap": []
               }
             }
           ],

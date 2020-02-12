@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"time"
 )
@@ -20,50 +21,81 @@ func parseZoneIDs(apiRespBody io.Reader) (map[string]string, error) {
 	return zones, nil
 }
 
-func extractZoneHTTPRequests(zoneCounts []httpRequests1mGroupsResp, lastDateTimeCounted time.Time) (map[string]*countryRequestData, time.Time, error) {
-	countries := map[string]*countryRequestData{}
-	for _, timeBucket := range zoneCounts {
+func extractZoneHTTPRequests(zone zoneResp, zoneNames map[string]string, lastDateTimeCounted time.Time) (time.Time, error) {
+	for _, timeBucket := range zone.ReqGroups {
 		bucketTime, err := time.Parse(time.RFC3339, timeBucket.Dimensions.Datetime)
 		if err != nil {
-			return nil, time.Time{}, err
+			return time.Time{}, err
 		}
 
 		if bucketTime.After(lastDateTimeCounted) {
 			lastDateTimeCounted = bucketTime
 			for _, countryData := range timeBucket.Sum.CountryMap {
-				if _, ok := countries[countryData.ClientCountryName]; !ok {
-					countries[countryData.ClientCountryName] = &countryRequestData{}
-				}
-				countries[countryData.ClientCountryName].requests += countryData.Requests
-				countries[countryData.ClientCountryName].threats += countryData.Threats
-				countries[countryData.ClientCountryName].bytes += countryData.Bytes
+				httpRequests.WithLabelValues(zoneNames[zone.ZoneTag], countryData.ClientCountryName, "", "", "").
+					Add(float64(countryData.Requests))
+				httpThreats.WithLabelValues(zoneNames[zone.ZoneTag], countryData.ClientCountryName).
+					Add(float64(countryData.Threats))
+				httpBytes.WithLabelValues(zoneNames[zone.ZoneTag], countryData.ClientCountryName).
+					Add(float64(countryData.Bytes))
+			}
+
+			httpCachedRequests.WithLabelValues(zoneNames[zone.ZoneTag]).Add(float64(timeBucket.Sum.CachedRequests))
+			httpCachedBytes.WithLabelValues(zoneNames[zone.ZoneTag]).Add(float64(timeBucket.Sum.CachedBytes))
+
+			for _, httpVersionData := range timeBucket.Sum.ClientHTTPVersionMap {
+				httpRequests.WithLabelValues(zoneNames[zone.ZoneTag], "", httpVersionData.ClientHTTPProtocol, "", "").
+					Add(float64(httpVersionData.Requests))
+			}
+
+			for _, responseStatusData := range timeBucket.Sum.ResponseStatusMap {
+				httpRequests.WithLabelValues(zoneNames[zone.ZoneTag], "", "", fmt.Sprintf("%d", responseStatusData.EdgeResponseStatus), "").
+					Add(float64(responseStatusData.Requests))
+			}
+
+			for _, threatPathData := range timeBucket.Sum.ThreatPathingMap {
+				httpRequests.WithLabelValues(zoneNames[zone.ZoneTag], "", "", "", threatPathData.ThreatPathingName).
+					Add(float64(threatPathData.Requests))
 			}
 		}
 	}
-	return countries, lastDateTimeCounted, nil
+	return lastDateTimeCounted, nil
 }
 
 type httpRequestsResp struct {
 	Viewer struct {
-		Zones []struct {
-			ReqGroups []httpRequests1mGroupsResp `json:"httpRequests1mGroups"`
-			ZoneTag   string                     `json:"zoneTag"`
-		} `json:"zones"`
+		Zones []zoneResp `json:"zones"`
 	} `json:"viewer"`
 }
 
-type httpRequests1mGroupsResp struct {
-	Dimensions struct {
-		Datetime string `json:"datetime"`
-	} `json:"dimensions"`
-	Sum struct {
-		CountryMap []struct {
-			ClientCountryName string `json:"clientCountryName"`
-			Requests          uint64 `json:"requests"`
-			Threats           uint64 `json:"threats"`
-			Bytes             uint64 `json:"bytes"`
-		} `json:"countryMap"`
-	} `json:"sum"`
+type zoneResp struct {
+	ReqGroups []struct {
+		Dimensions struct {
+			Datetime string `json:"datetime"`
+		} `json:"dimensions"`
+		Sum struct {
+			CountryMap []struct {
+				ClientCountryName string `json:"clientCountryName"`
+				Requests          uint64 `json:"requests"`
+				Threats           uint64 `json:"threats"`
+				Bytes             uint64 `json:"bytes"`
+			} `json:"countryMap"`
+			CachedBytes          uint64 `json:"cachedBytes"`
+			CachedRequests       uint64 `json:"cachedRequests"`
+			ClientHTTPVersionMap []struct {
+				ClientHTTPProtocol string `json:"clientHTTPProtocol"`
+				Requests           uint64 `json:"requests"`
+			} `json:"clientHTTPVersionMap"`
+			ResponseStatusMap []struct {
+				EdgeResponseStatus int    `json:"edgeResponseStatus"`
+				Requests           uint64 `json:"requests"`
+			} `json:"responseStatusMap"`
+			ThreatPathingMap []struct {
+				ThreatPathingName string `json:"threatPathingName"`
+				Requests          uint64 `json:"requests"`
+			} `json:"threatPathingMap"`
+		} `json:"sum"`
+	} `json:"httpRequests1mGroups"`
+	ZoneTag string `json:"zoneTag"`
 }
 
 type zonesResp struct {
@@ -72,10 +104,4 @@ type zonesResp struct {
 		Name   string `json:"name"`
 		Status string `json:"status"`
 	} `json:"result"`
-}
-
-type countryRequestData struct {
-	requests uint64
-	threats  uint64
-	bytes    uint64
 }
