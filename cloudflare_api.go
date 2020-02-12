@@ -22,15 +22,14 @@ func parseZoneIDs(apiRespBody io.Reader) (map[string]string, error) {
 
 func extractZoneHTTPRequests(zoneCounts []httpRequests1mGroupsResp, lastDateTimeCounted time.Time) (map[string]*countryRequestData, time.Time, error) {
 	countries := map[string]*countryRequestData{}
-	var bucketTime time.Time
 	for _, timeBucket := range zoneCounts {
-		var err error
-		bucketTime, err = time.Parse(time.RFC3339, timeBucket.Dimensions.Datetime)
+		bucketTime, err := time.Parse(time.RFC3339, timeBucket.Dimensions.Datetime)
 		if err != nil {
 			return nil, time.Time{}, err
 		}
 
 		if bucketTime.After(lastDateTimeCounted) {
+			lastDateTimeCounted = bucketTime
 			for _, countryData := range timeBucket.Sum.CountryMap {
 				if _, ok := countries[countryData.ClientCountryName]; !ok {
 					countries[countryData.ClientCountryName] = &countryRequestData{}
@@ -41,7 +40,7 @@ func extractZoneHTTPRequests(zoneCounts []httpRequests1mGroupsResp, lastDateTime
 			}
 		}
 	}
-	return countries, bucketTime, nil
+	return countries, lastDateTimeCounted, nil
 }
 
 type httpRequestsResp struct {
