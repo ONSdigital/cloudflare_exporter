@@ -2,12 +2,21 @@ package main
 
 import (
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
 var (
+	zonesActive                   prometheus.Gauge
+	httpRequests                  *prometheus.CounterVec
+	httpThreats                   *prometheus.CounterVec
+	httpBytes                     *prometheus.CounterVec
+	cfScrapes                     prometheus.Counter
+	cfScrapeErrs                  prometheus.Counter
+	cfLastSuccessTimestampSeconds prometheus.Gauge
+)
+
+func registerMetrics(reg prometheus.Registerer) {
 	// zone metrics
-	zonesActive = promauto.NewGauge(
+	zonesActive = prometheus.NewGauge(
 		prometheus.GaugeOpts{
 			Namespace: namespace,
 			Subsystem: "zones",
@@ -15,7 +24,7 @@ var (
 			Help:      "Number of active zones in the target Cloudflare account",
 		},
 	)
-	httpRequests = promauto.NewCounterVec(
+	httpRequests = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: namespace,
 			Subsystem: "zones",
@@ -24,7 +33,7 @@ var (
 		},
 		[]string{"zone", "client_country_name"},
 	)
-	httpThreats = promauto.NewCounterVec(
+	httpThreats = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: namespace,
 			Subsystem: "zones",
@@ -33,7 +42,7 @@ var (
 		},
 		[]string{"zone", "client_country_name"},
 	)
-	httpBytes = promauto.NewCounterVec(
+	httpBytes = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: namespace,
 			Subsystem: "zones",
@@ -44,7 +53,7 @@ var (
 	)
 
 	// graphql metrics
-	cfScrapes = promauto.NewCounter(
+	cfScrapes = prometheus.NewCounter(
 		prometheus.CounterOpts{
 			Namespace: namespace,
 			Subsystem: "graphql",
@@ -52,7 +61,7 @@ var (
 			Help:      "Number of times this exporter has scraped cloudflare",
 		},
 	)
-	cfScrapeErrs = promauto.NewCounter(
+	cfScrapeErrs = prometheus.NewCounter(
 		prometheus.CounterOpts{
 			Namespace: namespace,
 			Subsystem: "graphql",
@@ -60,7 +69,7 @@ var (
 			Help:      "Number of times this exporter has failed to scrape cloudflare",
 		},
 	)
-	cfLastSuccessTimestampSeconds = promauto.NewGauge(
+	cfLastSuccessTimestampSeconds = prometheus.NewGauge(
 		prometheus.GaugeOpts{
 			Namespace: namespace,
 			Subsystem: "graphql",
@@ -68,4 +77,15 @@ var (
 			Help:      "Time that the analytics data was last updated.",
 		},
 	)
-)
+
+	if reg == nil {
+		reg = prometheus.DefaultRegisterer
+	}
+	reg.MustRegister(zonesActive)
+	reg.MustRegister(httpRequests)
+	reg.MustRegister(httpThreats)
+	reg.MustRegister(httpBytes)
+	reg.MustRegister(cfScrapes)
+	reg.MustRegister(cfScrapeErrs)
+	reg.MustRegister(cfLastSuccessTimestampSeconds)
+}
