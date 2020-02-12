@@ -11,6 +11,7 @@ var (
 	httpBytes                     *prometheus.CounterVec
 	httpCachedRequests            *prometheus.CounterVec
 	httpCachedBytes               *prometheus.CounterVec
+	firewallEvents                *prometheus.CounterVec
 	cfScrapes                     prometheus.Counter
 	cfScrapeErrs                  prometheus.Counter
 	cfLastSuccessTimestampSeconds prometheus.Gauge
@@ -71,6 +72,15 @@ func registerMetrics(reg prometheus.Registerer) {
 		},
 		[]string{"zone"},
 	)
+	firewallEvents = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: namespace,
+			Subsystem: "zones",
+			Name:      "firewall_events_total",
+			Help:      "Number of firewall events.",
+		},
+		[]string{"zone", "action", "source", "ruleID"},
+	)
 
 	// graphql metrics
 	cfScrapes = prometheus.NewCounter(
@@ -107,6 +117,7 @@ func registerMetrics(reg prometheus.Registerer) {
 	reg.MustRegister(httpBytes)
 	reg.MustRegister(httpCachedRequests)
 	reg.MustRegister(httpCachedBytes)
+	reg.MustRegister(firewallEvents)
 	reg.MustRegister(cfScrapes)
 	reg.MustRegister(cfScrapeErrs)
 	reg.MustRegister(cfLastSuccessTimestampSeconds)

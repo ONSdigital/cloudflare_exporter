@@ -21,11 +21,13 @@ func parseZoneIDs(apiRespBody io.Reader) (map[string]string, error) {
 	return zones, nil
 }
 
-func extractZoneHTTPRequests(zone zoneResp, zoneNames map[string]string, lastDateTimeCounted time.Time) (time.Time, error) {
+type extractFunc func(zoneResp, map[string]string, time.Time) (int, time.Time, error)
+
+func extractZoneHTTPRequests(zone zoneResp, zoneNames map[string]string, lastDateTimeCounted time.Time) (int, time.Time, error) {
 	for _, timeBucket := range zone.ReqGroups {
 		bucketTime, err := time.Parse(time.RFC3339, timeBucket.Dimensions.Datetime)
 		if err != nil {
-			return time.Time{}, err
+			return len(zone.ReqGroups), time.Time{}, err
 		}
 
 		if bucketTime.After(lastDateTimeCounted) {
@@ -58,10 +60,28 @@ func extractZoneHTTPRequests(zone zoneResp, zoneNames map[string]string, lastDat
 			}
 		}
 	}
-	return lastDateTimeCounted, nil
+	return len(zone.ReqGroups), lastDateTimeCounted, nil
 }
 
-type httpRequestsResp struct {
+func extractZoneFirewallEvents(zone zoneResp, zoneNames map[string]string, lastDateTimeCounted time.Time) (int, time.Time, error) {
+	for _, firewallEventGroup := range zone.FirewallEventsAdaptiveGroups {
+		eventTime, err := time.Parse(time.RFC3339, firewallEventGroup.Dimensions.Datetime)
+		if err != nil {
+			return len(zone.FirewallEventsAdaptiveGroups), time.Time{}, err
+		}
+
+		if eventTime.After(lastDateTimeCounted) {
+			lastDateTimeCounted = eventTime
+			firewallEvents.WithLabelValues(
+				zoneNames[zone.ZoneTag], firewallEventGroup.Dimensions.Action,
+				firewallEventGroup.Dimensions.Source, firewallEventGroup.Dimensions.RuleID,
+			).Add(float64(firewallEventGroup.Count))
+		}
+	}
+	return len(zone.FirewallEventsAdaptiveGroups), lastDateTimeCounted, nil
+}
+
+type cloudflareResp struct {
 	Viewer struct {
 		Zones []zoneResp `json:"zones"`
 	} `json:"viewer"`
@@ -95,6 +115,17 @@ type zoneResp struct {
 			} `json:"threatPathingMap"`
 		} `json:"sum"`
 	} `json:"httpRequests1mGroups"`
+
+	FirewallEventsAdaptiveGroups []struct {
+		Count      uint64 `json:"count"`
+		Dimensions struct {
+			Action   string `json:"action"`
+			Datetime string `json:"datetime"`
+			RuleID   string `json:"ruleId"`
+			Source   string `json:"source"`
+		} `json:"dimensions"`
+	} `json:"firewallEventsAdaptiveGroups"`
+
 	ZoneTag string `json:"zoneTag"`
 }
 

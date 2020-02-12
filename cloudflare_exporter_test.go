@@ -54,6 +54,13 @@ func TestZoneAnalytics(t *testing.T) {
 			apiRespFixturePaths:        []string{"http_reqs_resp.json"},
 			expectedMetricsFixturePath: "expected_http_requests_later.metrics",
 		},
+		{
+			name:                       "sums firewall events for buckets later than specified time",
+			metricsUnderTest:           []string{"cloudflare_zones_firewall_events_total"},
+			lastUpdatedTime:            "2020-02-12T07:38:00Z",
+			apiRespFixturePaths:        []string{"firewall_events_resp.json"},
+			expectedMetricsFixturePath: "expected_firewall_events.metrics",
+		},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			reg := prometheus.NewPedanticRegistry()
@@ -67,7 +74,8 @@ func TestZoneAnalytics(t *testing.T) {
 				scrapeLock:    &sync.Mutex{},
 				graphqlClient: newFakeGraphqlClient(testCase.apiRespFixturePaths),
 				lastSeenBucketTimes: lastUpdatedTimes{
-					httpReqsByZone: map[string]time.Time{"a-zone": lastUpdatedTime},
+					httpReqsByZone:       map[string]time.Time{"a-zone": lastUpdatedTime},
+					firewallEventsByZone: map[string]time.Time{"a-zone": lastUpdatedTime},
 				},
 			}
 			zones := map[string]string{"a-zone": "a-zone-name"}
@@ -91,13 +99,13 @@ func TestExtractZoneHTTPRequests_ReturnsUnmodifiedLastDateTimeCountedWhenNoDataR
 	require.Nil(t, err)
 	defer testDataFile.Close()
 
-	var gqlResp map[string]httpRequestsResp
+	var gqlResp map[string]cloudflareResp
 	require.Nil(t, json.NewDecoder(testDataFile).Decode(&gqlResp))
 
 	lastDateTimeCounted := time.Now()
 
 	zones := map[string]string{"a-zone": "a-zone-name"}
-	newLastDateTime, err := extractZoneHTTPRequests(gqlResp["data"].Viewer.Zones[0], zones, lastDateTimeCounted)
+	_, newLastDateTime, err := extractZoneHTTPRequests(gqlResp["data"].Viewer.Zones[0], zones, lastDateTimeCounted)
 	require.Nil(t, err)
 	assert.Equal(t, newLastDateTime, lastDateTimeCounted)
 }

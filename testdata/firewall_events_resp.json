@@ -1,0 +1,50 @@
+{
+  "data": {
+    "viewer": {
+      "zones": [
+        {
+          "firewallEventsAdaptiveGroups": [
+            {
+              "count": 1,
+              "dimensions": {
+                "action": "simulate",
+                "datetime": "2020-02-12T07:10:37Z",
+                "ruleId": "100038A",
+                "source": "waf"
+              }
+            },
+            {
+              "count": 2,
+              "dimensions": {
+                "action": "drop",
+                "datetime": "2020-02-12T07:37:56Z",
+                "ruleId": "bic",
+                "source": "bic"
+              }
+            },
+            {
+              "count": 1,
+              "dimensions": {
+                "action": "simulate",
+                "datetime": "2020-02-12T07:40:59Z",
+                "ruleId": "100043B",
+                "source": "waf"
+              }
+            },
+            {
+              "count": 1,
+              "dimensions": {
+                "action": "drop",
+                "datetime": "2020-02-12T07:59:14Z",
+                "ruleId": "100202",
+                "source": "waf"
+              }
+            }
+          ],
+          "zoneTag": "a-zone"
+        }
+      ]
+    }
+  },
+  "errors": null
+}

@@ -41,6 +41,25 @@ query ($zone: String!, $start_time: Time!, $limit: Int!) {
 }
 	`)
 
+	firewallEventsGqlReq = graphql.NewRequest(`
+query ($zone: String!, $start_time: Time!, $limit: Int!) {
+  viewer {
+    zones(filter: {zoneTag: $zone}) {
+      firewallEventsAdaptiveGroups(limit: $limit, filter: {datetime_gt: $start_time, action_neq: "log"}, orderBy: [datetime_ASC]) {
+        count
+        dimensions {
+          action
+          ruleId
+          source
+          datetime
+        }
+      }
+      zoneTag
+    }
+  }
+}
+	`)
+
 	initialCountriesGqlReq = graphql.NewRequest(`
 query ($zones: [String!], $start_time: Time!, $limit: Int!) {
   viewer {

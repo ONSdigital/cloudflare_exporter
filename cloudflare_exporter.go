@@ -111,7 +111,8 @@ type exporter struct {
 }
 
 type lastUpdatedTimes struct {
-	httpReqsByZone map[string]time.Time
+	httpReqsByZone       map[string]time.Time
+	firewallEventsByZone map[string]time.Time
 }
 
 type graphqlClient interface {
@@ -207,7 +208,7 @@ func (e *exporter) getInitialCountries(ctx context.Context, zones map[string]str
 	initialCountriesGqlReq.Var("zones", keys(zones))
 	initialCountriesGqlReq.Var("start_time", time.Now().Add(-12*time.Hour))
 
-	var gqlResp httpRequestsResp
+	var gqlResp cloudflareResp
 	if err := e.makeGraphqlRequest(ctx, initialCountriesGqlReq, &gqlResp); err != nil {
 		return nil, err
 	}
@@ -226,28 +227,39 @@ func (e *exporter) getInitialCountries(ctx context.Context, zones map[string]str
 }
 
 func (e *exporter) getZoneAnalytics(ctx context.Context, zones map[string]string) error {
-	if e.lastSeenBucketTimes.httpReqsByZone == nil {
-		e.logger.Log("msg", "first scrape, initialising last scrape times")
-		e.lastSeenBucketTimes.httpReqsByZone = map[string]time.Time{}
-		now := time.Now()
-		for zoneID := range zones {
-			e.lastSeenBucketTimes.httpReqsByZone[zoneID] = now.Add(-e.scrapeInterval)
-		}
+	e.initLastSeenBucketTimes(zones)
+	if err := e.getZoneAnalyticsKind(
+		ctx, zones, e.lastSeenBucketTimes.httpReqsByZone, httpReqsGqlReq,
+		extractZoneHTTPRequests, "scrape_http_requests",
+	); err != nil {
+		return err
 	}
+	if err := e.getZoneAnalyticsKind(
+		ctx, zones, e.lastSeenBucketTimes.firewallEventsByZone, firewallEventsGqlReq,
+		extractZoneFirewallEvents, "scrape_firewall_events",
+	); err != nil {
+		return err
+	}
+	return nil
+}
 
+func (e *exporter) getZoneAnalyticsKind(
+	ctx context.Context, zones map[string]string, lastSeenBucketTimes map[string]time.Time,
+	req *graphql.Request, extract extractFunc, event string,
+) error {
 	for zoneID, zoneName := range zones {
-		debugLogger := level.Debug(log.With(e.logger, "zone", zoneName, "event", "scrape_zone"))
+		debugLogger := level.Debug(log.With(e.logger, "zone", zoneName, "event", event))
 		for {
-			lastDateTimeCounted := e.lastSeenBucketTimes.httpReqsByZone[zoneID]
+			lastDateTimeCounted := lastSeenBucketTimes[zoneID]
 			debugLogger.Log("msg", "starting", "last_datetime_bucket", lastDateTimeCounted.String())
-			httpReqsGqlReq.Var("zone", zoneID)
+			req.Var("zone", zoneID)
 			// Add some grace time so that adjacent polling loops overlap in query
 			// range, to avoid missing metrics. When we come to extract the zone data,
 			// we exclude time buckets that occur before the lastDateTimeCounted,
 			// avoiding double counting.
-			httpReqsGqlReq.Var("start_time", lastDateTimeCounted.Add(-5*time.Minute))
-			var gqlResp httpRequestsResp
-			if err := e.makeGraphqlRequest(ctx, httpReqsGqlReq, &gqlResp); err != nil {
+			req.Var("start_time", lastDateTimeCounted.Add(-5*time.Minute))
+			var gqlResp cloudflareResp
+			if err := e.makeGraphqlRequest(ctx, req, &gqlResp); err != nil {
 				return err
 			}
 
@@ -257,19 +269,24 @@ func (e *exporter) getZoneAnalytics(ctx context.Context, zones map[string]string
 				return fmt.Errorf("expected 1 zone (%s), got %d", zoneName, len(gqlResp.Viewer.Zones))
 			}
 			zone := gqlResp.Viewer.Zones[0]
-			lastDateTimeCounted, err := extractZoneHTTPRequests(zone, zones, lastDateTimeCounted)
+			results, lastDateTimeCounted, err := extract(zone, zones, lastDateTimeCounted)
 			if err != nil {
 				return err
 			}
-			e.lastSeenBucketTimes.httpReqsByZone[zone.ZoneTag] = lastDateTimeCounted
-			debugLogger.Log("msg", "finished", "last_datetime_bucket", lastDateTimeCounted.String())
+			lastSeenBucketTimes[zone.ZoneTag] = lastDateTimeCounted
+			if results == 0 {
+				// If we get no results, and therefore have no bucket time to record,
+				// it's possible the query window will eventually exceed the API maximum
+				// of 15 hours. Move it forward by one scrape interval to prevent this.
+				lastSeenBucketTimes[zone.ZoneTag] = lastDateTimeCounted.Add(e.scrapeInterval)
+			}
+			debugLogger.Log("msg", "finished", "last_datetime_bucket", lastSeenBucketTimes[zone.ZoneTag].String())
 
-			if len(zone.ReqGroups) < apiMaxLimit {
+			if results < apiMaxLimit {
 				break
 			}
 		}
 	}
-
 	return nil
 }
 
@@ -305,6 +322,24 @@ func (e *exporter) getZones(ctx context.Context) (map[string]string, error) {
 		return nil, err
 	}
 	return zones, nil
+}
+
+func (e *exporter) initLastSeenBucketTimes(zones map[string]string) {
+	now := time.Now()
+	if e.lastSeenBucketTimes.httpReqsByZone == nil {
+		e.logger.Log("msg", "first scrape of http requests, initialising last scrape times")
+		e.lastSeenBucketTimes.httpReqsByZone = map[string]time.Time{}
+		for zoneID := range zones {
+			e.lastSeenBucketTimes.httpReqsByZone[zoneID] = now.Add(-e.scrapeInterval)
+		}
+	}
+	if e.lastSeenBucketTimes.firewallEventsByZone == nil {
+		e.logger.Log("msg", "first scrape of firewall events, initialising last scrape times")
+		e.lastSeenBucketTimes.firewallEventsByZone = map[string]time.Time{}
+		for zoneID := range zones {
+			e.lastSeenBucketTimes.firewallEventsByZone[zoneID] = now.Add(-e.scrapeInterval)
+		}
+	}
 }
 
 func newPromLogger(logLevel string) log.Logger {
