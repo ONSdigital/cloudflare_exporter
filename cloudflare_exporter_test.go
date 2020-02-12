@@ -33,18 +33,26 @@ func TestZoneAnalytics(t *testing.T) {
 		expectedMetricsFixturePath string
 	}{
 		{
-			name:                       "sums data by country for all buckets when the specified time is before them all",
-			metricsUnderTest:           []string{"cloudflare_zones_http_requests_total", "cloudflare_zones_http_threats_total", "cloudflare_zones_http_bytes_total"},
+			name: "sums data by country for all buckets when the specified time is before them all",
+			metricsUnderTest: []string{
+				"cloudflare_zones_http_requests_total", "cloudflare_zones_http_threats_total",
+				"cloudflare_zones_http_bytes_total", "cloudflare_zones_http_cached_requests_total",
+				"cloudflare_zones_http_cached_bytes_total",
+			},
 			lastUpdatedTime:            "1970-01-01T00:00:00Z",
 			apiRespFixturePaths:        []string{"http_reqs_resp.json"},
-			expectedMetricsFixturePath: "expected_http_requests_countries.metrics",
+			expectedMetricsFixturePath: "expected_http_requests.metrics",
 		},
 		{
-			name:                       "sums data by country for buckets later than specified time",
-			metricsUnderTest:           []string{"cloudflare_zones_http_requests_total", "cloudflare_zones_http_threats_total", "cloudflare_zones_http_bytes_total"},
+			name: "sums data by country for buckets later than specified time",
+			metricsUnderTest: []string{
+				"cloudflare_zones_http_requests_total", "cloudflare_zones_http_threats_total",
+				"cloudflare_zones_http_bytes_total", "cloudflare_zones_http_cached_requests_total",
+				"cloudflare_zones_http_cached_bytes_total",
+			},
 			lastUpdatedTime:            "2020-02-06T10:01:00Z",
 			apiRespFixturePaths:        []string{"http_reqs_resp.json"},
-			expectedMetricsFixturePath: "expected_http_requests_countries_later.metrics",
+			expectedMetricsFixturePath: "expected_http_requests_later.metrics",
 		},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
