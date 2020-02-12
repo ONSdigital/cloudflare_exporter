@@ -60,6 +60,28 @@ query ($zone: String!, $start_time: Time!, $limit: Int!) {
 }
 	`)
 
+	healthCheckEventsGqlReq = graphql.NewRequest(`
+query ($zone: String!, $start_time: Time!, $limit: Int!) {
+  viewer {
+    zones(filter: {zoneTag: $zone}) {
+      healthCheckEventsGroups(limit: $limit, filter: {datetime_gt: $start_time}, orderBy: [datetime_ASC]) {
+        count
+        dimensions {
+          failureReason
+          healthCheckName
+          healthStatus
+          region
+          scope
+          originResponseStatus
+          datetime
+        }
+      }
+      zoneTag
+    }
+  }
+}
+	`)
+
 	initialCountriesGqlReq = graphql.NewRequest(`
 query ($zones: [String!], $start_time: Time!, $limit: Int!) {
   viewer {

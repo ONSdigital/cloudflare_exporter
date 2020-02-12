@@ -111,8 +111,9 @@ type exporter struct {
 }
 
 type lastUpdatedTimes struct {
-	httpReqsByZone       map[string]time.Time
-	firewallEventsByZone map[string]time.Time
+	httpReqsByZone          map[string]time.Time
+	firewallEventsByZone    map[string]time.Time
+	healthCheckEventsByZone map[string]time.Time
 }
 
 type graphqlClient interface {
@@ -240,6 +241,12 @@ func (e *exporter) getZoneAnalytics(ctx context.Context, zones map[string]string
 	); err != nil {
 		return err
 	}
+	if err := e.getZoneAnalyticsKind(
+		ctx, zones, e.lastSeenBucketTimes.healthCheckEventsByZone, healthCheckEventsGqlReq,
+		extractZoneHealthCheckEvents, "scrape_health_check_events",
+	); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -338,6 +345,13 @@ func (e *exporter) initLastSeenBucketTimes(zones map[string]string) {
 		e.lastSeenBucketTimes.firewallEventsByZone = map[string]time.Time{}
 		for zoneID := range zones {
 			e.lastSeenBucketTimes.firewallEventsByZone[zoneID] = now.Add(-e.scrapeInterval)
+		}
+	}
+	if e.lastSeenBucketTimes.healthCheckEventsByZone == nil {
+		e.logger.Log("msg", "first scrape of health check events, initialising last scrape times")
+		e.lastSeenBucketTimes.healthCheckEventsByZone = map[string]time.Time{}
+		for zoneID := range zones {
+			e.lastSeenBucketTimes.healthCheckEventsByZone[zoneID] = now.Add(-e.scrapeInterval)
 		}
 	}
 }
