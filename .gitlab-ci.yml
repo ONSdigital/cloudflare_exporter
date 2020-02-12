@@ -6,3 +6,8 @@ test:
   stage: test
   image: golang:1.13-buster
   script: go test ./...
+
+lint:
+  stage: test
+  image: golangci/golangci-lint:v1.23.6
+  script: golangci-lint run -v
