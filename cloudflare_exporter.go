@@ -61,9 +61,6 @@ func main() {
 		scrapeLock:     &sync.Mutex{},
 	}
 
-	// TODO populate the build-time vars in
-	// https://github.com/prometheus/common/blob/master/version/info.go with
-	// goreleaser or something.
 	prometheus.MustRegister(version.NewCollector("cloudflare_exporter"))
 	registerMetrics(nil)
 
@@ -122,25 +119,9 @@ type graphqlClient interface {
 }
 
 func (e *exporter) scrapeCloudflare(ctx context.Context) error {
-	initialCountryListStart := time.Now()
-	e.logger.Log("event", "collecting_initial_country_list", "msg", "starting")
-	initialZones, err := e.getZones(ctx)
-	if err != nil {
+	if err := e.initializeVectors(ctx); err != nil {
 		return err
 	}
-	initialCountries, err := e.getInitialCountries(ctx, initialZones)
-	if err != nil {
-		return err
-	}
-	for _, zone := range initialZones {
-		for country := range initialCountries {
-			httpRequests.WithLabelValues(zone, country, "", "", "")
-			httpThreats.WithLabelValues(zone, country)
-			httpBytes.WithLabelValues(zone, country)
-		}
-	}
-	initialCountryListDuration := float64(time.Since(initialCountryListStart)) / float64(time.Second)
-	e.logger.Log("event", "collecting_initial_country_list", "msg", "finished", "duration", initialCountryListDuration)
 
 	if *initialScrapeImmediately {
 		// Initial scrape, the ticker below won't fire straight away.
@@ -199,30 +180,35 @@ func (e *exporter) scrapeCloudflareOnce(ctx context.Context) error {
 	return nil
 }
 
-func (e *exporter) getInitialCountries(ctx context.Context, zones map[string]string) (map[string]struct{}, error) {
-	req := graphql.NewRequest(`
-query ($zones: [String!], $start_time: Time!, $limit: Int!) {
-  viewer {
-    zones(filter: {zoneTag_in: $zones}) {
-      zoneTag
-
-      httpRequests1mGroups(limit: $limit, filter: {datetime_gt: $start_time}) {
-        sum {
-          countryMap {
-            clientCountryName
-          }
-        }
-      }
-    }
-  }
+func (e *exporter) initializeVectors(ctx context.Context) error {
+	initialCountryListStart := time.Now()
+	e.logger.Log("event", "collecting_initial_country_list", "msg", "starting")
+	initialZones, err := e.getZones(ctx)
+	if err != nil {
+		return err
+	}
+	initialCountries, err := e.getInitialCountries(ctx, initialZones)
+	if err != nil {
+		return err
+	}
+	for _, zone := range initialZones {
+		for country := range initialCountries {
+			httpRequests.WithLabelValues(zone, country, "", "", "")
+			httpThreats.WithLabelValues(zone, country)
+			httpBytes.WithLabelValues(zone, country)
+		}
+	}
+	initialCountryListDuration := float64(time.Since(initialCountryListStart)) / float64(time.Second)
+	e.logger.Log("event", "collecting_initial_country_list", "msg", "finished", "duration", initialCountryListDuration)
+	return nil
 }
-	`)
 
-	req.Var("zones", keys(zones))
-	req.Var("start_time", time.Now().Add(-12*time.Hour))
+func (e *exporter) getInitialCountries(ctx context.Context, zones map[string]string) (map[string]struct{}, error) {
+	initialCountriesGqlReq.Var("zones", keys(zones))
+	initialCountriesGqlReq.Var("start_time", time.Now().Add(-12*time.Hour))
 
 	var gqlResp httpRequestsResp
-	if err := e.makeGraphqlRequest(ctx, req, &gqlResp); err != nil {
+	if err := e.makeGraphqlRequest(ctx, initialCountriesGqlReq, &gqlResp); err != nil {
 		return nil, err
 	}
 
@@ -240,44 +226,6 @@ query ($zones: [String!], $start_time: Time!, $limit: Int!) {
 }
 
 func (e *exporter) getZoneAnalytics(ctx context.Context, zones map[string]string) error {
-	httpReqsGqlReq := graphql.NewRequest(`
-query ($zone: String!, $start_time: Time!, $limit: Int!) {
-  viewer {
-    zones(filter: {zoneTag: $zone}) {
-      zoneTag
-
-      httpRequests1mGroups(limit: $limit, filter: {datetime_gt: $start_time}, orderBy: [datetime_ASC]) {
-        sum {
-          countryMap {
-            clientCountryName
-            requests
-            threats
-            bytes
-          }
-          cachedRequests
-          cachedBytes
-          clientHTTPVersionMap{
-            clientHTTPProtocol
-            requests
-          }
-          responseStatusMap{
-            edgeResponseStatus
-            requests
-          }
-          threatPathingMap{
-            requests
-            threatPathingName
-          }
-        }
-        dimensions {
-          datetime
-        }
-      }
-    }
-  }
-}
-	`)
-
 	if e.lastSeenBucketTimes.httpReqsByZone == nil {
 		e.logger.Log("msg", "first scrape, initialising last scrape times")
 		e.lastSeenBucketTimes.httpReqsByZone = map[string]time.Time{}
