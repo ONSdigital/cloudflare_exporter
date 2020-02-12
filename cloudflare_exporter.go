@@ -195,9 +195,9 @@ func (e *exporter) initializeVectors(ctx context.Context) error {
 	}
 	for _, zone := range initialZones {
 		for country := range initialCountries {
-			httpRequests.WithLabelValues(zone, country, "", "", "")
-			httpThreats.WithLabelValues(zone, country)
-			httpBytes.WithLabelValues(zone, country)
+			httpCountryRequests.WithLabelValues(zone, country)
+			httpCountryThreats.WithLabelValues(zone, country)
+			httpCountryBytes.WithLabelValues(zone, country)
 		}
 	}
 	initialCountryListDuration := float64(time.Since(initialCountryListStart)) / float64(time.Second)
