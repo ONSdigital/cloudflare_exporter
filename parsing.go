@@ -81,6 +81,26 @@ func extractZoneFirewallEvents(zone zoneResp, zoneNames map[string]string, lastD
 	return len(zone.FirewallEventsAdaptiveGroups), lastDateTimeCounted, nil
 }
 
+func extractZoneHealthCheckEvents(zone zoneResp, zoneNames map[string]string, lastDateTimeCounted time.Time) (int, time.Time, error) {
+	for _, healthCheckEventsGroup := range zone.HealthCheckEventsGroups {
+		eventTime, err := time.Parse(time.RFC3339, healthCheckEventsGroup.Dimensions.Datetime)
+		if err != nil {
+			return len(zone.HealthCheckEventsGroups), time.Time{}, err
+		}
+
+		if eventTime.After(lastDateTimeCounted) {
+			lastDateTimeCounted = eventTime
+			healthCheckEvents.WithLabelValues(
+				zoneNames[zone.ZoneTag], healthCheckEventsGroup.Dimensions.FailureReason,
+				healthCheckEventsGroup.Dimensions.HealthCheckName, healthCheckEventsGroup.Dimensions.HealthStatus,
+				fmt.Sprintf("%d", healthCheckEventsGroup.Dimensions.OriginResponseStatus),
+				healthCheckEventsGroup.Dimensions.Region, healthCheckEventsGroup.Dimensions.Scope,
+			).Add(float64(healthCheckEventsGroup.Count))
+		}
+	}
+	return len(zone.HealthCheckEventsGroups), lastDateTimeCounted, nil
+}
+
 type cloudflareResp struct {
 	Viewer struct {
 		Zones []zoneResp `json:"zones"`
@@ -125,6 +145,19 @@ type zoneResp struct {
 			Source   string `json:"source"`
 		} `json:"dimensions"`
 	} `json:"firewallEventsAdaptiveGroups"`
+
+	HealthCheckEventsGroups []struct {
+		Count      uint64 `json:"count"`
+		Dimensions struct {
+			Datetime             string `json:"datetime"`
+			FailureReason        string `json:"failureReason"`
+			HealthCheckName      string `json:"healthCheckName"`
+			HealthStatus         string `json:"healthStatus"`
+			OriginResponseStatus int    `json:"originResponseStatus"`
+			Region               string `json:"region"`
+			Scope                string `json:"scope"`
+		} `json:"dimensions"`
+	} `json:"healthCheckEventsGroups"`
 
 	ZoneTag string `json:"zoneTag"`
 }

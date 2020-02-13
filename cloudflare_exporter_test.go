@@ -61,6 +61,13 @@ func TestZoneAnalytics(t *testing.T) {
 			apiRespFixturePaths:        []string{"firewall_events_resp.json"},
 			expectedMetricsFixturePath: "expected_firewall_events.metrics",
 		},
+		{
+			name:                       "sums health check events for buckets later than specified time",
+			metricsUnderTest:           []string{"cloudflare_zones_health_check_events_total"},
+			lastUpdatedTime:            "2020-02-12T07:00:08Z",
+			apiRespFixturePaths:        []string{"health_check_events_resp.json"},
+			expectedMetricsFixturePath: "expected_health_check_events.metrics",
+		},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			reg := prometheus.NewPedanticRegistry()
@@ -74,8 +81,9 @@ func TestZoneAnalytics(t *testing.T) {
 				scrapeLock:    &sync.Mutex{},
 				graphqlClient: newFakeGraphqlClient(testCase.apiRespFixturePaths),
 				lastSeenBucketTimes: lastUpdatedTimes{
-					httpReqsByZone:       map[string]time.Time{"a-zone": lastUpdatedTime},
-					firewallEventsByZone: map[string]time.Time{"a-zone": lastUpdatedTime},
+					httpReqsByZone:          map[string]time.Time{"a-zone": lastUpdatedTime},
+					firewallEventsByZone:    map[string]time.Time{"a-zone": lastUpdatedTime},
+					healthCheckEventsByZone: map[string]time.Time{"a-zone": lastUpdatedTime},
 				},
 			}
 			zones := map[string]string{"a-zone": "a-zone-name"}

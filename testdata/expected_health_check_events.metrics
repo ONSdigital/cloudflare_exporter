@@ -1,0 +1,4 @@
+# HELP cloudflare_zones_health_check_events_total Number of health check events.
+# TYPE cloudflare_zones_health_check_events_total counter
+cloudflare_zones_health_check_events_total{failure_reason="noFailure",health_check_name="staging.gitlab.com",health_status="healthy",origin_response_status="302",region="GLOBAL",scope="global",zone="a-zone-name"} 1
+cloudflare_zones_health_check_events_total{failure_reason="noFailure",health_check_name="staging.gitlab.com",health_status="healthy",origin_response_status="302",region="WNAM",scope="region",zone="a-zone-name"} 1

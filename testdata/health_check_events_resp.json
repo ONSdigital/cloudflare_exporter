@@ -1,0 +1,49 @@
+{
+  "data": {
+    "viewer": {
+      "zones": [
+        {
+          "healthCheckEventsGroups": [
+            {
+              "count": 1,
+              "dimensions": {
+                "datetime": "2020-02-12T07:00:07Z",
+                "failureReason": "noFailure",
+                "healthCheckName": "staging.gitlab.com",
+                "healthStatus": "healthy",
+                "originResponseStatus": 302,
+                "region": "WNAM"
+              }
+            },
+            {
+              "count": 1,
+              "dimensions": {
+                "datetime": "2020-02-12T07:00:14Z",
+                "failureReason": "noFailure",
+                "healthCheckName": "staging.gitlab.com",
+                "healthStatus": "healthy",
+                "originResponseStatus": 302,
+                "region": "WNAM",
+                "scope": "region"
+              }
+            },
+            {
+              "count": 1,
+              "dimensions": {
+                "datetime": "2020-02-12T07:00:21Z",
+                "failureReason": "noFailure",
+                "healthCheckName": "staging.gitlab.com",
+                "healthStatus": "healthy",
+                "originResponseStatus": 302,
+                "region": "GLOBAL",
+                "scope": "global"
+              }
+            }
+          ],
+          "zoneTag": "a-zone"
+        }
+      ]
+    }
+  },
+  "errors": null
+}
