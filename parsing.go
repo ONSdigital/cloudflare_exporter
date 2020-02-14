@@ -33,11 +33,11 @@ func extractZoneHTTPRequests(zone zoneResp, zoneNames map[string]string, lastDat
 		if bucketTime.After(lastDateTimeCounted) {
 			lastDateTimeCounted = bucketTime
 			for _, countryData := range timeBucket.Sum.CountryMap {
-				httpRequests.WithLabelValues(zoneNames[zone.ZoneTag], countryData.ClientCountryName, "", "", "").
+				httpCountryRequests.WithLabelValues(zoneNames[zone.ZoneTag], countryData.ClientCountryName).
 					Add(float64(countryData.Requests))
-				httpThreats.WithLabelValues(zoneNames[zone.ZoneTag], countryData.ClientCountryName).
+				httpCountryThreats.WithLabelValues(zoneNames[zone.ZoneTag], countryData.ClientCountryName).
 					Add(float64(countryData.Threats))
-				httpBytes.WithLabelValues(zoneNames[zone.ZoneTag], countryData.ClientCountryName).
+				httpCountryBytes.WithLabelValues(zoneNames[zone.ZoneTag], countryData.ClientCountryName).
 					Add(float64(countryData.Bytes))
 			}
 
@@ -45,17 +45,17 @@ func extractZoneHTTPRequests(zone zoneResp, zoneNames map[string]string, lastDat
 			httpCachedBytes.WithLabelValues(zoneNames[zone.ZoneTag]).Add(float64(timeBucket.Sum.CachedBytes))
 
 			for _, httpVersionData := range timeBucket.Sum.ClientHTTPVersionMap {
-				httpRequests.WithLabelValues(zoneNames[zone.ZoneTag], "", httpVersionData.ClientHTTPProtocol, "", "").
+				httpProtocolRequests.WithLabelValues(zoneNames[zone.ZoneTag], httpVersionData.ClientHTTPProtocol).
 					Add(float64(httpVersionData.Requests))
 			}
 
 			for _, responseStatusData := range timeBucket.Sum.ResponseStatusMap {
-				httpRequests.WithLabelValues(zoneNames[zone.ZoneTag], "", "", fmt.Sprintf("%d", responseStatusData.EdgeResponseStatus), "").
+				httpResponses.WithLabelValues(zoneNames[zone.ZoneTag], fmt.Sprintf("%d", responseStatusData.EdgeResponseStatus)).
 					Add(float64(responseStatusData.Requests))
 			}
 
 			for _, threatPathData := range timeBucket.Sum.ThreatPathingMap {
-				httpRequests.WithLabelValues(zoneNames[zone.ZoneTag], "", "", "", threatPathData.ThreatPathingName).
+				httpThreats.WithLabelValues(zoneNames[zone.ZoneTag], threatPathData.ThreatPathingName).
 					Add(float64(threatPathData.Requests))
 			}
 		}

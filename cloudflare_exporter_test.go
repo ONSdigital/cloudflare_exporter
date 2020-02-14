@@ -33,26 +33,54 @@ func TestZoneAnalytics(t *testing.T) {
 		expectedMetricsFixturePath string
 	}{
 		{
-			name: "sums data by country for all buckets when the specified time is before them all",
+			name: "sums HTTP request data by country for all buckets when the specified time is before them all",
 			metricsUnderTest: []string{
-				"cloudflare_zones_http_requests_total", "cloudflare_zones_http_threats_total",
-				"cloudflare_zones_http_bytes_total", "cloudflare_zones_http_cached_requests_total",
-				"cloudflare_zones_http_cached_bytes_total",
+				"cloudflare_zones_http_country_requests_total", "cloudflare_zones_http_country_threats_total",
+				"cloudflare_zones_http_country_bytes_total",
 			},
 			lastUpdatedTime:            "1970-01-01T00:00:00Z",
 			apiRespFixturePaths:        []string{"http_reqs_resp.json"},
-			expectedMetricsFixturePath: "expected_http_requests.metrics",
+			expectedMetricsFixturePath: "expected_http_country_requests.metrics",
 		},
 		{
-			name: "sums data by country for buckets later than specified time",
+			name: "sums HTTP request data by country for buckets later than specified time",
 			metricsUnderTest: []string{
-				"cloudflare_zones_http_requests_total", "cloudflare_zones_http_threats_total",
-				"cloudflare_zones_http_bytes_total", "cloudflare_zones_http_cached_requests_total",
-				"cloudflare_zones_http_cached_bytes_total",
+				"cloudflare_zones_http_country_requests_total", "cloudflare_zones_http_country_threats_total",
+				"cloudflare_zones_http_country_bytes_total",
 			},
 			lastUpdatedTime:            "2020-02-06T10:01:00Z",
 			apiRespFixturePaths:        []string{"http_reqs_resp.json"},
-			expectedMetricsFixturePath: "expected_http_requests_later.metrics",
+			expectedMetricsFixturePath: "expected_http_country_requests_later.metrics",
+		},
+		{
+			name: "sums HTTP request cache data",
+			metricsUnderTest: []string{
+				"cloudflare_zones_http_cached_requests_total", "cloudflare_zones_http_cached_bytes_total",
+			},
+			lastUpdatedTime:            "1970-01-01T00:00:00Z",
+			apiRespFixturePaths:        []string{"http_reqs_resp.json"},
+			expectedMetricsFixturePath: "expected_cache.metrics",
+		},
+		{
+			name:                       "sums HTTP request data by protocol_version",
+			metricsUnderTest:           []string{"cloudflare_zones_http_protocol_requests_total"},
+			lastUpdatedTime:            "1970-01-01T00:00:00Z",
+			apiRespFixturePaths:        []string{"http_reqs_resp.json"},
+			expectedMetricsFixturePath: "expected_http_protocol_requests.metrics",
+		},
+		{
+			name:                       "sums HTTP request data by response status",
+			metricsUnderTest:           []string{"cloudflare_zones_http_responses_total"},
+			lastUpdatedTime:            "1970-01-01T00:00:00Z",
+			apiRespFixturePaths:        []string{"http_reqs_resp.json"},
+			expectedMetricsFixturePath: "expected_http_responses.metrics",
+		},
+		{
+			name:                       "sums HTTP request data by threat path",
+			metricsUnderTest:           []string{"cloudflare_zones_http_threats_total"},
+			lastUpdatedTime:            "1970-01-01T00:00:00Z",
+			apiRespFixturePaths:        []string{"http_reqs_resp.json"},
+			expectedMetricsFixturePath: "expected_http_threats.metrics",
 		},
 		{
 			name:                       "sums firewall events for buckets later than specified time",

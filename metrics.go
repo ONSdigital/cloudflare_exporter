@@ -6,9 +6,12 @@ import (
 
 var (
 	zonesActive                   prometheus.Gauge
-	httpRequests                  *prometheus.CounterVec
+	httpCountryRequests           *prometheus.CounterVec
+	httpCountryThreats            *prometheus.CounterVec
+	httpCountryBytes              *prometheus.CounterVec
+	httpProtocolRequests          *prometheus.CounterVec
+	httpResponses                 *prometheus.CounterVec
 	httpThreats                   *prometheus.CounterVec
-	httpBytes                     *prometheus.CounterVec
 	httpCachedRequests            *prometheus.CounterVec
 	httpCachedBytes               *prometheus.CounterVec
 	firewallEvents                *prometheus.CounterVec
@@ -28,32 +31,59 @@ func registerMetrics(reg prometheus.Registerer) {
 			Help:      "Number of active zones in the target Cloudflare account",
 		},
 	)
-	httpRequests = prometheus.NewCounterVec(
+	httpCountryRequests = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: namespace,
 			Subsystem: "zones",
-			Name:      "http_requests_total",
-			Help:      "Number of HTTP requests made by clients",
+			Name:      "http_country_requests_total",
+			Help:      "Number of HTTP requests by country.",
 		},
-		[]string{"zone", "client_country_name", "client_http_protocol", "edge_response_status", "threat_pathing_name"},
+		[]string{"zone", "client_country_name"},
+	)
+	httpCountryThreats = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: namespace,
+			Subsystem: "zones",
+			Name:      "http_country_threats_total",
+			Help:      "Number of HTTP threats by country.",
+		},
+		[]string{"zone", "client_country_name"},
+	)
+	httpCountryBytes = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: namespace,
+			Subsystem: "zones",
+			Name:      "http_country_bytes_total",
+			Help:      "Number of HTTP bytes by country.",
+		},
+		[]string{"zone", "client_country_name"},
+	)
+	httpProtocolRequests = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: namespace,
+			Subsystem: "zones",
+			Name:      "http_protocol_requests_total",
+			Help:      "Number of HTTP requests by protocol.",
+		},
+		[]string{"zone", "client_http_protocol"},
+	)
+	httpResponses = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: namespace,
+			Subsystem: "zones",
+			Name:      "http_responses_total",
+			Help:      "Number of HTTP responses by status.",
+		},
+		[]string{"zone", "edge_response_status"},
 	)
 	httpThreats = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: namespace,
 			Subsystem: "zones",
 			Name:      "http_threats_total",
-			Help:      "Number of HTTP threats made by clients",
+			Help:      "Number of HTTP threats by threat path.",
 		},
-		[]string{"zone", "client_country_name"},
-	)
-	httpBytes = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Namespace: namespace,
-			Subsystem: "zones",
-			Name:      "http_bytes_total",
-			Help:      "Number of HTTP bytes received by clients",
-		},
-		[]string{"zone", "client_country_name"},
+		[]string{"zone", "threat_pathing_name"},
 	)
 	httpCachedRequests = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
@@ -122,9 +152,12 @@ func registerMetrics(reg prometheus.Registerer) {
 		reg = prometheus.DefaultRegisterer
 	}
 	reg.MustRegister(zonesActive)
-	reg.MustRegister(httpRequests)
+	reg.MustRegister(httpCountryRequests)
+	reg.MustRegister(httpCountryThreats)
+	reg.MustRegister(httpCountryBytes)
+	reg.MustRegister(httpProtocolRequests)
+	reg.MustRegister(httpResponses)
 	reg.MustRegister(httpThreats)
-	reg.MustRegister(httpBytes)
 	reg.MustRegister(httpCachedRequests)
 	reg.MustRegister(httpCachedBytes)
 	reg.MustRegister(firewallEvents)
