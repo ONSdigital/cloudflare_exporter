@@ -28,7 +28,7 @@ const (
 var (
 	// arguments
 	listenAddress = kingpin.Flag("listen-address", "Metrics exporter listen address.").
-			Short('l').Envar("CLOUDFLARE_EXPORTER_LISTEN_ADDRESS").Default(":11313").String()
+			Short('l').Envar("CLOUDFLARE_EXPORTER_LISTEN_ADDRESS").Default(":9199").String()
 	cfEmail = kingpin.Flag("cloudflare-api-email", "email address for analytics API authentication.").
 		Envar("CLOUDFLARE_API_EMAIL").Required().String()
 	cfAPIKey = kingpin.Flag("cloudflare-api-key", "API key for analytics API authentication.").

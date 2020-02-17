@@ -1,0 +1,47 @@
+---
+project_name: cloudflare_exporter
+release:
+  gitlab:
+    owner: gitlab-org
+    name: cloudflare_exporter
+before:
+  hooks:
+    - go mod download
+archives:
+  - wrap_in_directory: true
+    format_overrides:
+      - goos: windows
+        format: zip
+builds:
+  - binary: cloudflare_exporter
+    env:
+      - CGO_ENABLED=0
+    goarch:
+      - amd64
+      - arm
+      - arm64
+    goarm:
+      - 6
+      - 7
+    goos:
+      - darwin
+      - freebsd
+      - linux
+      - windows
+    ignore:
+      - goos: darwin
+        goarch: 386
+checksum:
+  name_template: 'checksums.txt'
+dockers:
+  - image_templates:
+      - "{{ .Env.CI_REGISTRY_IMAGE }}:latest"
+      - "{{ .Env.CI_REGISTRY_IMAGE }}:{{ .Tag }}"
+snapshot:
+  name_template: "{{ .Tag }}-{{ .ShortCommit }}"
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
