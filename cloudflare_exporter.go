@@ -59,6 +59,11 @@ func main() {
 		scrapeInterval: time.Duration(*cfScrapeIntervalSeconds) * time.Second,
 		logger:         logger,
 		scrapeLock:     &sync.Mutex{},
+		lastSeenBucketTimes: &lastUpdatedTimes{
+			httpReqsByZone:          map[string]time.Time{},
+			firewallEventsByZone:    map[string]time.Time{},
+			healthCheckEventsByZone: map[string]time.Time{},
+		},
 	}
 
 	prometheus.MustRegister(version.NewCollector("cloudflare_exporter"))
@@ -107,7 +112,7 @@ type exporter struct {
 	logger         log.Logger
 
 	scrapeLock          *sync.Mutex
-	lastSeenBucketTimes lastUpdatedTimes
+	lastSeenBucketTimes *lastUpdatedTimes
 }
 
 type lastUpdatedTimes struct {
@@ -228,7 +233,6 @@ func (e *exporter) getInitialCountries(ctx context.Context, zones map[string]str
 }
 
 func (e *exporter) getZoneAnalytics(ctx context.Context, zones map[string]string) error {
-	e.initLastSeenBucketTimes(zones)
 	if err := e.getZoneAnalyticsKind(
 		ctx, zones, e.lastSeenBucketTimes.httpReqsByZone, httpReqsGqlReq,
 		extractZoneHTTPRequests, "scrape_http_requests",
@@ -258,6 +262,9 @@ func (e *exporter) getZoneAnalyticsKind(
 		debugLogger := level.Debug(log.With(e.logger, "zone", zoneName, "event", event))
 		for {
 			lastDateTimeCounted := lastSeenBucketTimes[zoneID]
+			if lastDateTimeCounted == (time.Time{}) {
+				lastDateTimeCounted = time.Now().Add(-e.scrapeInterval)
+			}
 			debugLogger.Log("msg", "starting", "last_datetime_bucket", lastDateTimeCounted.String())
 			req.Var("zone", zoneID)
 			// Add some grace time so that adjacent polling loops overlap in query
@@ -329,31 +336,6 @@ func (e *exporter) getZones(ctx context.Context) (map[string]string, error) {
 		return nil, err
 	}
 	return zones, nil
-}
-
-func (e *exporter) initLastSeenBucketTimes(zones map[string]string) {
-	now := time.Now()
-	if e.lastSeenBucketTimes.httpReqsByZone == nil {
-		e.logger.Log("msg", "first scrape of http requests, initialising last scrape times")
-		e.lastSeenBucketTimes.httpReqsByZone = map[string]time.Time{}
-		for zoneID := range zones {
-			e.lastSeenBucketTimes.httpReqsByZone[zoneID] = now.Add(-e.scrapeInterval)
-		}
-	}
-	if e.lastSeenBucketTimes.firewallEventsByZone == nil {
-		e.logger.Log("msg", "first scrape of firewall events, initialising last scrape times")
-		e.lastSeenBucketTimes.firewallEventsByZone = map[string]time.Time{}
-		for zoneID := range zones {
-			e.lastSeenBucketTimes.firewallEventsByZone[zoneID] = now.Add(-e.scrapeInterval)
-		}
-	}
-	if e.lastSeenBucketTimes.healthCheckEventsByZone == nil {
-		e.logger.Log("msg", "first scrape of health check events, initialising last scrape times")
-		e.lastSeenBucketTimes.healthCheckEventsByZone = map[string]time.Time{}
-		for zoneID := range zones {
-			e.lastSeenBucketTimes.healthCheckEventsByZone[zoneID] = now.Add(-e.scrapeInterval)
-		}
-	}
 }
 
 func newPromLogger(logLevel string) log.Logger {
