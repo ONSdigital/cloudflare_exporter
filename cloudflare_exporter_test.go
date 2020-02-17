@@ -108,7 +108,7 @@ func TestZoneAnalytics(t *testing.T) {
 				logger:        newPromLogger("error"),
 				scrapeLock:    &sync.Mutex{},
 				graphqlClient: newFakeGraphqlClient(testCase.apiRespFixturePaths),
-				lastSeenBucketTimes: lastUpdatedTimes{
+				lastSeenBucketTimes: &lastUpdatedTimes{
 					httpReqsByZone:          map[string]time.Time{"a-zone": lastUpdatedTime},
 					firewallEventsByZone:    map[string]time.Time{"a-zone": lastUpdatedTime},
 					healthCheckEventsByZone: map[string]time.Time{"a-zone": lastUpdatedTime},
