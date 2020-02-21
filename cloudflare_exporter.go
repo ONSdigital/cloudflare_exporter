@@ -162,7 +162,6 @@ func (e *exporter) scrapeCloudflareOnce(ctx context.Context) error {
 	defer e.scrapeLock.Unlock()
 
 	logger := log.With(e.logger, "event", "scraping_cloudflare")
-	start := time.Now()
 
 	logger.Log("msg", "starting")
 	cfScrapes.Inc()
@@ -170,34 +169,47 @@ func (e *exporter) scrapeCloudflareOnce(ctx context.Context) error {
 	ctx, cancel := context.WithTimeout(ctx, e.scrapeTimeout)
 	defer cancel()
 
-	zones, err := e.getZones(ctx)
-	if err != nil {
-		return err
-	}
-	zonesActive.Set(float64(len(zones)))
+	duration, err := timeOperation(func() error {
+		var zones map[string]string
+		zones, err := e.getZones(ctx)
+		if err != nil {
+			return err
+		}
+		zonesActive.Set(float64(len(zones)))
 
-	if err := e.getZoneAnalytics(ctx, zones); err != nil {
+		return e.getZoneAnalytics(ctx, zones)
+	})
+	if err != nil {
 		return err
 	}
 
 	cfLastSuccessTimestampSeconds.Set(float64(time.Now().Unix()))
 
-	duration := float64(time.Since(start)) / float64(time.Second)
 	logger.Log("msg", "finished", "duration", duration)
 	return nil
 }
 
 func (e *exporter) initializeVectors(ctx context.Context) error {
-	initialCountryListStart := time.Now()
 	e.logger.Log("event", "collecting_initial_country_list", "msg", "starting")
-	initialZones, err := e.getZones(ctx)
+
+	var initialZones map[string]string
+	var initialCountries map[string]struct{}
+	duration, err := timeOperation(func() error {
+		var err error
+		initialZones, err = e.getZones(ctx)
+		if err != nil {
+			return err
+		}
+		initialCountries, err = e.getInitialCountries(ctx, initialZones)
+		if err != nil {
+			return err
+		}
+		return nil
+	})
 	if err != nil {
 		return err
 	}
-	initialCountries, err := e.getInitialCountries(ctx, initialZones)
-	if err != nil {
-		return err
-	}
+
 	for _, zone := range initialZones {
 		for country := range initialCountries {
 			httpCountryRequests.WithLabelValues(zone, country)
@@ -205,8 +217,8 @@ func (e *exporter) initializeVectors(ctx context.Context) error {
 			httpCountryBytes.WithLabelValues(zone, country)
 		}
 	}
-	initialCountryListDuration := float64(time.Since(initialCountryListStart)) / float64(time.Second)
-	e.logger.Log("event", "collecting_initial_country_list", "msg", "finished", "duration", initialCountryListDuration)
+
+	e.logger.Log("event", "collecting_initial_country_list", "msg", "finished", "duration", duration)
 	return nil
 }
 
@@ -345,12 +357,4 @@ func newPromLogger(logLevel string) log.Logger {
 	}
 	logConf := &promlog.Config{Level: loggerLogLevel, Format: &promlog.AllowedFormat{}}
 	return level.Info(promlog.New(logConf))
-}
-
-func keys(dict map[string]string) []string {
-	var keys []string
-	for key := range dict {
-		keys = append(keys, key)
-	}
-	return keys
 }
