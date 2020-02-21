@@ -38,12 +38,12 @@ var (
 	cfAnalyticsAPIBaseURL = kingpin.Flag("cloudflare-analytics-api-base-url", "Cloudflare analytics (graphql) API base URL").
 				Envar("CLOUDFLARE_ANALYTICS_API_BASE_URL").Default("https://api.cloudflare.com/client/v4/graphql").String()
 	cfScrapeIntervalSeconds = kingpin.Flag("cloudflare-scrape-interval-seconds", "Interval at which to retrieve metrics from Cloudflare, separate from being scraped by prometheus").
-				Envar("CLOUDFLARE_SCRAPE_INTERVAL_MINUTES").Default("300").Int()
+				Envar("CLOUDFLARE_SCRAPE_INTERVAL_SECONDS").Default("300").Int()
 	scrapeTimeoutSeconds = kingpin.Flag("scrape-timeout-seconds", "scrape timeout seconds").
 				Envar("CLOUDFLARE_EXPORTER_SCRAPE_TIMEOUT_SECONDS").Default("30").Int()
 	logLevel                 = kingpin.Flag("log-level", "log level").Envar("CLOUDFLARE_EXPORTER_LOG_LEVEL").Default("info").String()
 	initialScrapeImmediately = kingpin.Flag("initial-scrape-immediately", "Scrape Cloudflare immediately at startup, or wait scrape-timeout-seconds. For development only.").
-					Hidden().Envar("CLOUDFLARE_EXPORTER_INITIAL_SCRPAE_IMMEDIATELY").Default("false").Bool()
+					Hidden().Envar("CLOUDFLARE_EXPORTER_INITIAL_SCRAPE_IMMEDIATELY").Default("false").Bool()
 )
 
 func main() {
