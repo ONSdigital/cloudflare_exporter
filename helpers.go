@@ -2,10 +2,10 @@ package main
 
 import "time"
 
-func timeOperation(f func() error) (float64, error) {
+func timeOperation(f func() error) (time.Duration, error) {
 	start := time.Now()
 	err := f()
-	return float64(time.Since(start)) / float64(time.Second), err
+	return time.Since(start), err
 }
 
 func keys(dict map[string]string) []string {

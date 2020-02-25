@@ -184,7 +184,7 @@ func (e *exporter) scrapeCloudflareOnce(ctx context.Context) error {
 
 	cfLastSuccessTimestampSeconds.Set(float64(time.Now().Unix()))
 
-	logger.Log("msg", "finished", "duration", duration)
+	logger.Log("msg", "finished", "duration", duration.Seconds())
 	return nil
 }
 
@@ -218,7 +218,7 @@ func (e *exporter) initializeVectors(ctx context.Context) error {
 		}
 	}
 
-	logger.Log("msg", "finished", "duration", duration)
+	logger.Log("msg", "finished", "duration", duration.Seconds())
 	return nil
 }
 
@@ -326,7 +326,7 @@ func (e *exporter) makeGraphqlRequest(ctx context.Context, logger log.Logger, re
 	duration, err := timeOperation(func() error {
 		return e.graphqlClient.Run(ctx, req, &resp)
 	})
-	level.Debug(logger).Log("duration", duration, "msg", "finished request")
+	level.Debug(logger).Log("duration", duration.Seconds(), "msg", "finished request")
 	return err
 }
 
@@ -358,7 +358,7 @@ func (e *exporter) getZones(ctx context.Context) (map[string]string, error) {
 		}
 		return nil
 	})
-	level.Debug(e.logger).Log("request", "list zones", "duration", duration, "msg", "finished request")
+	level.Debug(e.logger).Log("request", "list zones", "duration", duration.Seconds(), "msg", "finished request")
 	return zones, err
 }
 
