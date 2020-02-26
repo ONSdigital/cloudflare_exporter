@@ -50,7 +50,7 @@ func main() {
 	kingpin.Parse()
 
 	logger := newPromLogger(*logLevel)
-	logger.Log("msg", "starting cloudflare_exporter")
+	level.Info(logger).Log("msg", "starting cloudflare_exporter")
 
 	cfExporter := &exporter{
 		email: *cfEmail, apiKey: *cfAPIKey, apiBaseURL: *cfAPIBaseURL,
@@ -74,7 +74,7 @@ func main() {
 
 	runGroup := run.Group{}
 
-	logger.Log("msg", "listening", "addr", *listenAddress)
+	level.Info(logger).Log("msg", "listening", "addr", *listenAddress)
 	serverSocket, err := net.Listen("tcp", *listenAddress)
 	if err != nil {
 		level.Error(logger).Log("error", err)
@@ -83,16 +83,16 @@ func main() {
 	runGroup.Add(func() error {
 		return http.Serve(serverSocket, router)
 	}, func(error) {
-		logger.Log("msg", "closing server socket")
+		level.Info(logger).Log("msg", "closing server socket")
 		serverSocket.Close()
 	})
 
 	cfScrapeCtx, cancelCfScrape := context.WithCancel(context.Background())
 	runGroup.Add(func() error {
-		logger.Log("msg", "starting Cloudflare scrape loop")
+		level.Info(logger).Log("msg", "starting Cloudflare scrape loop")
 		return cfExporter.scrapeCloudflare(cfScrapeCtx)
 	}, func(error) {
-		logger.Log("msg", "ending Cloudflare scrape loop")
+		level.Info(logger).Log("msg", "ending Cloudflare scrape loop")
 		cancelCfScrape()
 	})
 
@@ -161,43 +161,55 @@ func (e *exporter) scrapeCloudflareOnce(ctx context.Context) error {
 	e.scrapeLock.Lock()
 	defer e.scrapeLock.Unlock()
 
-	logger := log.With(e.logger, "event", "scraping_cloudflare")
-	start := time.Now()
-
+	logger := level.Info(log.With(e.logger, "event", "scraping cloudflare"))
 	logger.Log("msg", "starting")
 	cfScrapes.Inc()
 
 	ctx, cancel := context.WithTimeout(ctx, e.scrapeTimeout)
 	defer cancel()
 
-	zones, err := e.getZones(ctx)
-	if err != nil {
-		return err
-	}
-	zonesActive.Set(float64(len(zones)))
+	duration, err := timeOperation(func() error {
+		var zones map[string]string
+		zones, err := e.getZones(ctx)
+		if err != nil {
+			return err
+		}
+		zonesActive.Set(float64(len(zones)))
 
-	if err := e.getZoneAnalytics(ctx, zones); err != nil {
+		return e.getZoneAnalytics(ctx, zones)
+	})
+	if err != nil {
 		return err
 	}
 
 	cfLastSuccessTimestampSeconds.Set(float64(time.Now().Unix()))
 
-	duration := float64(time.Since(start)) / float64(time.Second)
-	logger.Log("msg", "finished", "duration", duration)
+	logger.Log("msg", "finished", "duration", duration.Seconds())
 	return nil
 }
 
 func (e *exporter) initializeVectors(ctx context.Context) error {
-	initialCountryListStart := time.Now()
-	e.logger.Log("event", "collecting_initial_country_list", "msg", "starting")
-	initialZones, err := e.getZones(ctx)
+	logger := level.Info(log.With(e.logger, "event", "collecting initial country list"))
+	logger.Log("msg", "starting")
+
+	var initialZones map[string]string
+	var initialCountries map[string]struct{}
+	duration, err := timeOperation(func() error {
+		var err error
+		initialZones, err = e.getZones(ctx)
+		if err != nil {
+			return err
+		}
+		initialCountries, err = e.getInitialCountries(ctx, initialZones)
+		if err != nil {
+			return err
+		}
+		return nil
+	})
 	if err != nil {
 		return err
 	}
-	initialCountries, err := e.getInitialCountries(ctx, initialZones)
-	if err != nil {
-		return err
-	}
+
 	for _, zone := range initialZones {
 		for country := range initialCountries {
 			httpCountryRequests.WithLabelValues(zone, country)
@@ -205,8 +217,8 @@ func (e *exporter) initializeVectors(ctx context.Context) error {
 			httpCountryBytes.WithLabelValues(zone, country)
 		}
 	}
-	initialCountryListDuration := float64(time.Since(initialCountryListStart)) / float64(time.Second)
-	e.logger.Log("event", "collecting_initial_country_list", "msg", "finished", "duration", initialCountryListDuration)
+
+	logger.Log("msg", "finished", "duration", duration.Seconds())
 	return nil
 }
 
@@ -215,7 +227,10 @@ func (e *exporter) getInitialCountries(ctx context.Context, zones map[string]str
 	initialCountriesGqlReq.Var("start_time", time.Now().Add(-12*time.Hour))
 
 	var gqlResp cloudflareResp
-	if err := e.makeGraphqlRequest(ctx, initialCountriesGqlReq, &gqlResp); err != nil {
+	if err := e.makeGraphqlRequest(
+		ctx, log.With(e.logger, "request", "graphql:zones:httpRequests1mGroups"),
+		initialCountriesGqlReq, &gqlResp,
+	); err != nil {
 		return nil, err
 	}
 
@@ -235,19 +250,19 @@ func (e *exporter) getInitialCountries(ctx context.Context, zones map[string]str
 func (e *exporter) getZoneAnalytics(ctx context.Context, zones map[string]string) error {
 	if err := e.getZoneAnalyticsKind(
 		ctx, zones, e.lastSeenBucketTimes.httpReqsByZone, httpReqsGqlReq,
-		extractZoneHTTPRequests, "scrape_http_requests",
+		extractZoneHTTPRequests, "graphql:zones:httpRequests1mGroups",
 	); err != nil {
 		return err
 	}
 	if err := e.getZoneAnalyticsKind(
 		ctx, zones, e.lastSeenBucketTimes.firewallEventsByZone, firewallEventsGqlReq,
-		extractZoneFirewallEvents, "scrape_firewall_events",
+		extractZoneFirewallEvents, "graphql:zones:firewallEventsAdaptiveGroups",
 	); err != nil {
 		return err
 	}
 	if err := e.getZoneAnalyticsKind(
 		ctx, zones, e.lastSeenBucketTimes.healthCheckEventsByZone, healthCheckEventsGqlReq,
-		extractZoneHealthCheckEvents, "scrape_health_check_events",
+		extractZoneHealthCheckEvents, "graphql:zones:healthCheckEventsGroups",
 	); err != nil {
 		return err
 	}
@@ -256,16 +271,16 @@ func (e *exporter) getZoneAnalytics(ctx context.Context, zones map[string]string
 
 func (e *exporter) getZoneAnalyticsKind(
 	ctx context.Context, zones map[string]string, lastSeenBucketTimes map[string]time.Time,
-	req *graphql.Request, extract extractFunc, event string,
+	req *graphql.Request, extract extractFunc, requestKind string,
 ) error {
 	for zoneID, zoneName := range zones {
-		debugLogger := level.Debug(log.With(e.logger, "zone", zoneName, "event", event))
+		logger := level.Debug(log.With(e.logger, "event", "get zone analytics", "zone", zoneName, "request", requestKind))
 		for {
 			lastDateTimeCounted := lastSeenBucketTimes[zoneID]
 			if lastDateTimeCounted == (time.Time{}) {
 				lastDateTimeCounted = time.Now().Add(-e.scrapeInterval)
 			}
-			debugLogger.Log("msg", "starting", "last_datetime_bucket", lastDateTimeCounted.String())
+			logger.Log("msg", "starting", "last_datetime_bucket", lastDateTimeCounted.String())
 			req.Var("zone", zoneID)
 			// Add some grace time so that adjacent polling loops overlap in query
 			// range, to avoid missing metrics. When we come to extract the zone data,
@@ -273,7 +288,7 @@ func (e *exporter) getZoneAnalyticsKind(
 			// avoiding double counting.
 			req.Var("start_time", lastDateTimeCounted.Add(-5*time.Minute))
 			var gqlResp cloudflareResp
-			if err := e.makeGraphqlRequest(ctx, req, &gqlResp); err != nil {
+			if err := e.makeGraphqlRequest(ctx, log.With(e.logger), req, &gqlResp); err != nil {
 				return err
 			}
 
@@ -294,7 +309,7 @@ func (e *exporter) getZoneAnalyticsKind(
 				// of 15 hours. Move it forward by one scrape interval to prevent this.
 				lastSeenBucketTimes[zone.ZoneTag] = lastDateTimeCounted.Add(e.scrapeInterval)
 			}
-			debugLogger.Log("msg", "finished", "last_datetime_bucket", lastSeenBucketTimes[zone.ZoneTag].String())
+			logger.Log("msg", "finished", "last_datetime_bucket", lastSeenBucketTimes[zone.ZoneTag].String(), "results", results)
 
 			if results < apiMaxLimit {
 				break
@@ -304,11 +319,15 @@ func (e *exporter) getZoneAnalyticsKind(
 	return nil
 }
 
-func (e *exporter) makeGraphqlRequest(ctx context.Context, req *graphql.Request, resp interface{}) error {
+func (e *exporter) makeGraphqlRequest(ctx context.Context, logger log.Logger, req *graphql.Request, resp interface{}) error {
 	req.Header.Set("X-AUTH-EMAIL", e.email)
 	req.Header.Set("X-AUTH-KEY", e.apiKey)
 	req.Var("limit", apiMaxLimit)
-	return e.graphqlClient.Run(ctx, req, &resp)
+	duration, err := timeOperation(func() error {
+		return e.graphqlClient.Run(ctx, req, &resp)
+	})
+	level.Debug(logger).Log("duration", duration.Seconds(), "msg", "finished request")
+	return err
 }
 
 func (e *exporter) getZones(ctx context.Context) (map[string]string, error) {
@@ -321,21 +340,26 @@ func (e *exporter) getZones(ctx context.Context) (map[string]string, error) {
 	req.Header.Set("X-AUTH-EMAIL", e.email)
 	req.Header.Set("X-AUTH-KEY", e.apiKey)
 
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	if resp.StatusCode != http.StatusOK {
-		err = fmt.Errorf("expected status 200, got %d", resp.StatusCode)
-		return nil, err
-	}
+	var zones map[string]string
+	duration, err := timeOperation(func() error {
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			return err
+		}
+		if resp.StatusCode != http.StatusOK {
+			err = fmt.Errorf("expected status 200, got %d", resp.StatusCode)
+			return err
+		}
 
-	defer resp.Body.Close()
-	zones, err := parseZoneIDs(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-	return zones, nil
+		defer resp.Body.Close()
+		zones, err = parseZoneIDs(resp.Body)
+		if err != nil {
+			return err
+		}
+		return nil
+	})
+	level.Debug(e.logger).Log("request", "list zones", "duration", duration.Seconds(), "msg", "finished request")
+	return zones, err
 }
 
 func newPromLogger(logLevel string) log.Logger {
@@ -344,13 +368,5 @@ func newPromLogger(logLevel string) log.Logger {
 		panic(err)
 	}
 	logConf := &promlog.Config{Level: loggerLogLevel, Format: &promlog.AllowedFormat{}}
-	return level.Info(promlog.New(logConf))
-}
-
-func keys(dict map[string]string) []string {
-	var keys []string
-	for key := range dict {
-		keys = append(keys, key)
-	}
-	return keys
+	return promlog.New(logConf)
 }
