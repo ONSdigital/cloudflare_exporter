@@ -47,6 +47,7 @@ var (
 )
 
 func main() {
+	kingpin.Version(version.Print("cloudflare_exporter"))
 	kingpin.Parse()
 
 	logger := newPromLogger(*logLevel)
