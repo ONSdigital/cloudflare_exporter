@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -112,8 +113,10 @@ type exporter struct {
 	scrapeTimeout  time.Duration
 	logger         log.Logger
 
-	scrapeLock          *sync.Mutex
-	lastSeenBucketTimes *lastUpdatedTimes
+	scrapeLock               *sync.Mutex
+	lastSeenBucketTimes      *lastUpdatedTimes
+	consecutiveRateLimitErrs int
+	skipNextScrapes          int
 }
 
 type lastUpdatedTimes struct {
@@ -143,6 +146,12 @@ func (e *exporter) scrapeCloudflare(ctx context.Context) error {
 	for {
 		select {
 		case <-ticker:
+			if e.skipNextScrapes > 0 {
+				e.logger.Log("msg", fmt.Sprintf("rate limited, will skip next %d scrapes", e.skipNextScrapes))
+				e.skipNextScrapes--
+				break
+			}
+
 			if err := e.scrapeCloudflareOnce(ctx); err != nil {
 				// Returning an error here would cause the exporter to crash. If it
 				// crashloops but prometheus manages to scrape it in between crashes, we
@@ -151,7 +160,23 @@ func (e *exporter) scrapeCloudflare(ctx context.Context) error {
 				// metric.
 				level.Error(e.logger).Log("error", err)
 				cfScrapeErrs.Inc()
+
+				// We've observed 2 error messages relating to rate limits in the wild:
+				//   - "rate limiter budget depleted, please try again later"
+				//   - "graphql: limit reached, please try again later"
+				// We crudely check for the substring "limit", and err on the side of
+				// applying backoff on errors containing it.
+				if strings.Contains(err.Error(), "limit") {
+					// Keep track of consecutive rate limit errors seen, and back off one
+					// extra scrape per consecutive error.
+					e.consecutiveRateLimitErrs++
+					e.skipNextScrapes = e.consecutiveRateLimitErrs
+				}
+				break
 			}
+
+			e.skipNextScrapes = 0
+			e.consecutiveRateLimitErrs = 0
 		case <-ctx.Done():
 			return nil
 		}
