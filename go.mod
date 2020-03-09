@@ -1,6 +1,6 @@
 module gitlab.com/gitlab-org/cloudflare_exporter
 
-go 1.13
+go 1.14
 
 require (
 	github.com/go-kit/kit v0.9.0

@@ -4,6 +4,7 @@ stages:
   - release
 
 variables:
+  GOLANG_IMAGE: golang:1.14-buster
   GORELEASER_IMAGE: goreleaser/goreleaser:latest
   DOCKER_REGISTRY: $CI_REGISTRY
   DOCKER_USERNAME: gitlab-ci-token
@@ -11,12 +12,12 @@ variables:
 
 test:
   stage: test
-  image: golang:1.13-buster
+  image: $GOLANG_IMAGE
   script: go test ./...
 
 go_mod_tidy:
   stage: test
-  image: golang:1.13-buster
+  image: $GOLANG_IMAGE
   script:
     - go mod tidy
     - git diff --exit-code -- go.sum go.mod
