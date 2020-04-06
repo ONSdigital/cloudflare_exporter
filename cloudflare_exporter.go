@@ -22,8 +22,9 @@ import (
 )
 
 const (
-	namespace   = "cloudflare"
-	apiMaxLimit = 10000
+	namespace     = "cloudflare"
+	apiMaxLimit   = 10000
+	maxTimeWindow = time.Hour
 )
 
 var (
@@ -329,11 +330,14 @@ func (e *exporter) getZoneAnalyticsKind(
 				return err
 			}
 			lastSeenBucketTimes[zone.ZoneTag] = lastDateTimeCounted
-			if results == 0 {
-				// If we get no results, and therefore have no bucket time to record,
-				// it's possible the query window will eventually exceed the API maximum
-				// of 15 hours. Move it forward by one scrape interval to prevent this.
-				lastSeenBucketTimes[zone.ZoneTag] = lastDateTimeCounted.Add(e.scrapeInterval)
+			if time.Since(lastDateTimeCounted) > maxTimeWindow {
+				// For very quiet data sets, in which either no new data points are
+				// returned, or due to intentionally overlapping query windows, the
+				// latest seen timestamp for a data set remains the same across many
+				// successive queries, it's possible that the query window would grow to
+				// exceed the API maximum for this data set. Cap the window to prevent
+				// this.
+				lastSeenBucketTimes[zone.ZoneTag] = time.Now().Add(maxTimeWindow * -1)
 			}
 			logger.Log("msg", "finished", "last_datetime_bucket", lastSeenBucketTimes[zone.ZoneTag].String(), "results", results)
 
