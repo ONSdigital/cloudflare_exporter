@@ -81,22 +81,4 @@ query ($zone: String!, $start_time: Time!, $limit: Int!) {
   }
 }
 	`)
-
-	initialCountriesGqlReq = graphql.NewRequest(`
-query ($zones: [String!], $start_time: Time!, $limit: Int!) {
-  viewer {
-    zones(filter: {zoneTag_in: $zones}) {
-      zoneTag
-
-      httpRequests1mGroups(limit: $limit, filter: {datetime_gt: $start_time}) {
-        sum {
-          countryMap {
-            clientCountryName
-          }
-        }
-      }
-    }
-  }
-}
-	`)
 )
