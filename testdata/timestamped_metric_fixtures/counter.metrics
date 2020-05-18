@@ -1,0 +1,3 @@
+# HELP namespace_subsystem_name help
+# TYPE namespace_subsystem_name counter
+namespace_subsystem_name{const="constval"} 4 1589796420000
