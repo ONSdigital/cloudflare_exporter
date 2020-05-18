@@ -1,4 +1,4 @@
 # HELP cloudflare_zones_http_responses_total Number of HTTP responses by status.
 # TYPE cloudflare_zones_http_responses_total counter
-cloudflare_zones_http_responses_total{edge_response_status="200",zone="a-zone-name"} 6
-cloudflare_zones_http_responses_total{edge_response_status="404",zone="a-zone-name"} 9
+cloudflare_zones_http_responses_total{edge_response_status="200",zone="a-zone-name"} 6 1580983380000
+cloudflare_zones_http_responses_total{edge_response_status="404",zone="a-zone-name"} 9 1580983380000

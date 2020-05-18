@@ -1,4 +1,4 @@
 # HELP cloudflare_zones_http_protocol_requests_total Number of HTTP requests by protocol.
 # TYPE cloudflare_zones_http_protocol_requests_total counter
-cloudflare_zones_http_protocol_requests_total{client_http_protocol="HTTP/1.1",zone="a-zone-name"} 12
-cloudflare_zones_http_protocol_requests_total{client_http_protocol="HTTP/2",zone="a-zone-name"} 15
+cloudflare_zones_http_protocol_requests_total{client_http_protocol="HTTP/1.1",zone="a-zone-name"} 12 1580983380000
+cloudflare_zones_http_protocol_requests_total{client_http_protocol="HTTP/2",zone="a-zone-name"} 15 1580983380000

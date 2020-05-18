@@ -1,3 +1,3 @@
 # HELP cloudflare_zones_http_threats_total Number of HTTP threats by threat path.
 # TYPE cloudflare_zones_http_threats_total counter
-cloudflare_zones_http_threats_total{threat_pathing_name="a-threat",zone="a-zone-name"} 10
+cloudflare_zones_http_threats_total{threat_pathing_name="a-threat",zone="a-zone-name"} 10 1580983260000
