@@ -9,6 +9,10 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
+var (
+	metricsMaxAge = 15 * time.Minute
+)
+
 func NewTimestampedMetric(
 	valueType prometheus.ValueType, opts prometheus.Opts,
 ) *TimestampedMetric {
@@ -49,6 +53,13 @@ func (m *TimestampedMetric) Collect(metrics chan<- prometheus.Metric) {
 	timestamp := m.timestamp
 	if timestamp == (time.Time{}) {
 		timestamp = time.Now().UTC()
+	}
+
+	// Do not report timestamped metrics older than 15m
+	// Prometheus complains about "Error on ingesting samples that are too old or
+	// are too far into the future"
+	if time.Now().UTC().Add(-metricsMaxAge).After(m.timestamp) {
+		return
 	}
 
 	metrics <- prometheus.NewMetricWithTimestamp(timestamp, prometheus.MustNewConstMetric(

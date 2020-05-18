@@ -15,6 +15,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// HACK: should really make metricsMaxAge injectable, but that would require a
+// bit of refactoring that doesn't quite need to be done.
+func init() {
+	metricsMaxAge = time.Hour * 24 * 365 * 100
+}
+
 func TestParseZoneIDs_ReturnsMapOfNonPendingZones(t *testing.T) {
 	f, err := os.Open("testdata/zones_resp.json")
 	require.Nil(t, err)
