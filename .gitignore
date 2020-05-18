@@ -1,2 +1,3 @@
 /cloudflare_exporter
 /dist
+*.go.orig
