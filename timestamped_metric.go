@@ -48,7 +48,7 @@ func (m *TimestampedMetric) Collect(metrics chan<- prometheus.Metric) {
 	// the current time (prometheus default behavior).
 	timestamp := m.timestamp
 	if timestamp == (time.Time{}) {
-		timestamp = time.Now()
+		timestamp = time.Now().UTC()
 	}
 
 	metrics <- prometheus.NewMetricWithTimestamp(timestamp, prometheus.MustNewConstMetric(

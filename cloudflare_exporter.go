@@ -209,7 +209,7 @@ func (e *exporter) scrapeCloudflareOnce(ctx context.Context) error {
 		return err
 	}
 
-	cfLastSuccessTimestampSeconds.Set(float64(time.Now().Unix()))
+	cfLastSuccessTimestampSeconds.Set(float64(time.Now().UTC().Unix()))
 
 	logger.Log("msg", "finished", "duration", duration.Seconds())
 	return nil
@@ -251,7 +251,7 @@ func (e *exporter) initializeVectors(ctx context.Context) error {
 
 func (e *exporter) getInitialCountries(ctx context.Context, zones map[string]string) (map[string]struct{}, error) {
 	initialCountriesGqlReq.Var("zones", keys(zones))
-	initialCountriesGqlReq.Var("start_time", time.Now().Add(-12*time.Hour))
+	initialCountriesGqlReq.Var("start_time", time.Now().UTC().Add(-12*time.Hour))
 
 	var gqlResp cloudflareResp
 	if err := e.makeGraphqlRequest(
@@ -305,7 +305,7 @@ func (e *exporter) getZoneAnalyticsKind(
 		for {
 			lastDateTimeCounted := lastSeenBucketTimes[zoneID]
 			if lastDateTimeCounted == (time.Time{}) {
-				lastDateTimeCounted = time.Now().Add(-e.scrapeInterval)
+				lastDateTimeCounted = time.Now().UTC().Add(-e.scrapeInterval)
 			}
 			logger.Log("msg", "starting", "last_datetime_bucket", lastDateTimeCounted.String())
 			req.Var("zone", zoneID)
@@ -337,7 +337,7 @@ func (e *exporter) getZoneAnalyticsKind(
 				// successive queries, it's possible that the query window would grow to
 				// exceed the API maximum for this data set. Cap the window to prevent
 				// this.
-				lastSeenBucketTimes[zone.ZoneTag] = time.Now().Add(maxTimeWindow * -1)
+				lastSeenBucketTimes[zone.ZoneTag] = time.Now().UTC().Add(maxTimeWindow * -1)
 			}
 			logger.Log("msg", "finished", "last_datetime_bucket", lastSeenBucketTimes[zone.ZoneTag].String(), "results", results)
 

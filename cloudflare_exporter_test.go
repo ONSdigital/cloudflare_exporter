@@ -138,7 +138,7 @@ func TestExtractZoneHTTPRequests_ReturnsUnmodifiedLastDateTimeCountedWhenNoDataR
 	var gqlResp map[string]cloudflareResp
 	require.Nil(t, json.NewDecoder(testDataFile).Decode(&gqlResp))
 
-	lastDateTimeCounted := time.Now()
+	lastDateTimeCounted := time.Now().UTC()
 
 	zones := map[string]string{"a-zone": "a-zone-name"}
 	_, newLastDateTime, err := extractZoneHTTPRequests(gqlResp["data"].Viewer.Zones[0], zones, lastDateTimeCounted)
