@@ -16,7 +16,9 @@ import (
 )
 
 // HACK: should really make metricsMaxAge injectable, but that would require a
-// bit of refactoring that doesn't quite need to be done.
+// bit of refactoring that doesn't quite need to be done. For now, override
+// metricsMaxAge to a very large number so that the hardcoded bucket times in
+// the test fixtures do not become stale.
 func init() {
 	metricsMaxAge = time.Hour * 24 * 365 * 100
 }

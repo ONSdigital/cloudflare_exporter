@@ -10,6 +10,14 @@ import (
 )
 
 var (
+	// Do not report timestamped metrics older than 15m
+	// Prometheus complains about "Error on ingesting samples that are too old or
+	// are too far into the future"
+	// The prometheus code indicates that the max age of a metric is related to
+	// when the last WAL block was written:
+	// https://github.com/prometheus/prometheus/blob/master/tsdb/db.go#L616
+	// If this is correct, any value is arbitrary, and we might have to make this
+	// configurable in the future.
 	metricsMaxAge = 15 * time.Minute
 )
 
@@ -55,9 +63,6 @@ func (m *TimestampedMetric) Collect(metrics chan<- prometheus.Metric) {
 		timestamp = time.Now().UTC()
 	}
 
-	// Do not report timestamped metrics older than 15m
-	// Prometheus complains about "Error on ingesting samples that are too old or
-	// are too far into the future"
 	if time.Now().UTC().Add(-metricsMaxAge).After(m.timestamp) {
 		return
 	}
