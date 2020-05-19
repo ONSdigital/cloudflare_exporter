@@ -35,6 +35,8 @@ var (
 		Envar("CLOUDFLARE_API_EMAIL").Required().String()
 	cfAPIKey = kingpin.Flag("cloudflare-api-key", "API key for analytics API authentication.").
 			Envar("CLOUDFLARE_API_KEY").Required().String()
+	cfZones = kingpin.Flag("cloudflare-zones", "Comma-separated list of zones to scrape. Omit to scrape all zones in account.").
+		Envar("CLOUDFLARE_ZONES").Default("").String()
 	cfAPIBaseURL = kingpin.Flag("cloudflare-api-base-url", "Cloudflare regular (non-analytics) API base URL").
 			Envar("CLOUDFLARE_API_BASE_URL").Default("https://api.cloudflare.com/client/v4").String()
 	cfAnalyticsAPIBaseURL = kingpin.Flag("cloudflare-analytics-api-base-url", "Cloudflare analytics (graphql) API base URL").
@@ -318,8 +320,13 @@ func (e *exporter) getZones(ctx context.Context) (map[string]string, error) {
 			return err
 		}
 
+		var zonesFilter []string
+		if *cfZones != "" {
+			zonesFilter = strings.Split(*cfZones, ",")
+		}
+
 		defer resp.Body.Close()
-		zones, err = parseZoneIDs(resp.Body)
+		zones, err = parseZoneIDs(resp.Body, zonesFilter)
 		if err != nil {
 			return err
 		}

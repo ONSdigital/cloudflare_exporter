@@ -7,14 +7,14 @@ import (
 	"time"
 )
 
-func parseZoneIDs(apiRespBody io.Reader) (map[string]string, error) {
+func parseZoneIDs(apiRespBody io.Reader, zonesFilter []string) (map[string]string, error) {
 	var zoneList zonesResp
 	if err := json.NewDecoder(apiRespBody).Decode(&zoneList); err != nil {
 		return nil, err
 	}
 	zones := map[string]string{}
 	for _, zone := range zoneList.Result {
-		if zone.Status != "pending" {
+		if zone.Status != "pending" && (len(zonesFilter) == 0 || contains(zonesFilter, zone.Name)) {
 			zones[zone.ID] = zone.Name
 		}
 	}
