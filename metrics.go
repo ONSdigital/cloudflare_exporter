@@ -6,16 +6,16 @@ import (
 
 var (
 	zonesActive                   prometheus.Gauge
-	httpCountryRequests           *prometheus.CounterVec
-	httpCountryThreats            *prometheus.CounterVec
-	httpCountryBytes              *prometheus.CounterVec
-	httpProtocolRequests          *prometheus.CounterVec
-	httpResponses                 *prometheus.CounterVec
-	httpThreats                   *prometheus.CounterVec
-	httpCachedRequests            *prometheus.CounterVec
-	httpCachedBytes               *prometheus.CounterVec
-	firewallEvents                *prometheus.CounterVec
-	healthCheckEvents             *prometheus.CounterVec
+	httpCountryRequests           *TimestampedMetricVec
+	httpCountryThreats            *TimestampedMetricVec
+	httpCountryBytes              *TimestampedMetricVec
+	httpProtocolRequests          *TimestampedMetricVec
+	httpResponses                 *TimestampedMetricVec
+	httpThreats                   *TimestampedMetricVec
+	httpCachedRequests            *TimestampedMetricVec
+	httpCachedBytes               *TimestampedMetricVec
+	firewallEvents                *TimestampedMetricVec
+	healthCheckEvents             *TimestampedMetricVec
 	cfScrapes                     prometheus.Counter
 	cfScrapeErrs                  prometheus.Counter
 	cfLastSuccessTimestampSeconds prometheus.Gauge
@@ -31,8 +31,9 @@ func registerMetrics(reg prometheus.Registerer) {
 			Help:      "Number of active zones in the target Cloudflare account",
 		},
 	)
-	httpCountryRequests = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
+	httpCountryRequests = NewTimestampedMetricVec(
+		prometheus.CounterValue,
+		prometheus.Opts{
 			Namespace: namespace,
 			Subsystem: "zones",
 			Name:      "http_country_requests_total",
@@ -40,8 +41,9 @@ func registerMetrics(reg prometheus.Registerer) {
 		},
 		[]string{"zone", "client_country_name"},
 	)
-	httpCountryThreats = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
+	httpCountryThreats = NewTimestampedMetricVec(
+		prometheus.CounterValue,
+		prometheus.Opts{
 			Namespace: namespace,
 			Subsystem: "zones",
 			Name:      "http_country_threats_total",
@@ -49,8 +51,9 @@ func registerMetrics(reg prometheus.Registerer) {
 		},
 		[]string{"zone", "client_country_name"},
 	)
-	httpCountryBytes = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
+	httpCountryBytes = NewTimestampedMetricVec(
+		prometheus.CounterValue,
+		prometheus.Opts{
 			Namespace: namespace,
 			Subsystem: "zones",
 			Name:      "http_country_bytes_total",
@@ -58,8 +61,9 @@ func registerMetrics(reg prometheus.Registerer) {
 		},
 		[]string{"zone", "client_country_name"},
 	)
-	httpProtocolRequests = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
+	httpProtocolRequests = NewTimestampedMetricVec(
+		prometheus.CounterValue,
+		prometheus.Opts{
 			Namespace: namespace,
 			Subsystem: "zones",
 			Name:      "http_protocol_requests_total",
@@ -67,8 +71,9 @@ func registerMetrics(reg prometheus.Registerer) {
 		},
 		[]string{"zone", "client_http_protocol"},
 	)
-	httpResponses = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
+	httpResponses = NewTimestampedMetricVec(
+		prometheus.CounterValue,
+		prometheus.Opts{
 			Namespace: namespace,
 			Subsystem: "zones",
 			Name:      "http_responses_total",
@@ -76,8 +81,9 @@ func registerMetrics(reg prometheus.Registerer) {
 		},
 		[]string{"zone", "edge_response_status"},
 	)
-	httpThreats = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
+	httpThreats = NewTimestampedMetricVec(
+		prometheus.CounterValue,
+		prometheus.Opts{
 			Namespace: namespace,
 			Subsystem: "zones",
 			Name:      "http_threats_total",
@@ -85,8 +91,9 @@ func registerMetrics(reg prometheus.Registerer) {
 		},
 		[]string{"zone", "threat_pathing_name"},
 	)
-	httpCachedRequests = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
+	httpCachedRequests = NewTimestampedMetricVec(
+		prometheus.CounterValue,
+		prometheus.Opts{
 			Namespace: namespace,
 			Subsystem: "zones",
 			Name:      "http_cached_requests_total",
@@ -94,8 +101,9 @@ func registerMetrics(reg prometheus.Registerer) {
 		},
 		[]string{"zone"},
 	)
-	httpCachedBytes = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
+	httpCachedBytes = NewTimestampedMetricVec(
+		prometheus.CounterValue,
+		prometheus.Opts{
 			Namespace: namespace,
 			Subsystem: "zones",
 			Name:      "http_cached_bytes_total",
@@ -103,8 +111,9 @@ func registerMetrics(reg prometheus.Registerer) {
 		},
 		[]string{"zone"},
 	)
-	firewallEvents = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
+	firewallEvents = NewTimestampedMetricVec(
+		prometheus.CounterValue,
+		prometheus.Opts{
 			Namespace: namespace,
 			Subsystem: "zones",
 			Name:      "firewall_events_total",
@@ -112,8 +121,9 @@ func registerMetrics(reg prometheus.Registerer) {
 		},
 		[]string{"zone", "action", "source", "ruleID"},
 	)
-	healthCheckEvents = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
+	healthCheckEvents = NewTimestampedMetricVec(
+		prometheus.CounterValue,
+		prometheus.Opts{
 			Namespace: namespace,
 			Subsystem: "zones",
 			Name:      "health_check_events_total",

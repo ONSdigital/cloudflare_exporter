@@ -1,6 +1,6 @@
 # HELP cloudflare_zones_http_cached_bytes_total Number of cached HTTP bytes served.
 # TYPE cloudflare_zones_http_cached_bytes_total counter
-cloudflare_zones_http_cached_bytes_total{zone="a-zone-name"} 6
+cloudflare_zones_http_cached_bytes_total{zone="a-zone-name"} 6 1580983380000
 # HELP cloudflare_zones_http_cached_requests_total Number of cached HTTP requests served.
 # TYPE cloudflare_zones_http_cached_requests_total counter
-cloudflare_zones_http_cached_requests_total{zone="a-zone-name"} 9
+cloudflare_zones_http_cached_requests_total{zone="a-zone-name"} 9 1580983380000

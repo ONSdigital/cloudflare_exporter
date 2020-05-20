@@ -1,0 +1,3 @@
+# HELP namespace_subsystem_name help
+# TYPE namespace_subsystem_name gauge
+namespace_subsystem_name{const="constval"} 3.2 1589796420000

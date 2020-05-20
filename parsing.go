@@ -34,29 +34,29 @@ func extractZoneHTTPRequests(zone zoneResp, zoneNames map[string]string, lastDat
 			lastDateTimeCounted = bucketTime
 			for _, countryData := range timeBucket.Sum.CountryMap {
 				httpCountryRequests.WithLabelValues(zoneNames[zone.ZoneTag], countryData.ClientCountryName).
-					Add(float64(countryData.Requests))
+					Add(float64(countryData.Requests), bucketTime)
 				httpCountryThreats.WithLabelValues(zoneNames[zone.ZoneTag], countryData.ClientCountryName).
-					Add(float64(countryData.Threats))
+					Add(float64(countryData.Threats), bucketTime)
 				httpCountryBytes.WithLabelValues(zoneNames[zone.ZoneTag], countryData.ClientCountryName).
-					Add(float64(countryData.Bytes))
+					Add(float64(countryData.Bytes), bucketTime)
 			}
 
-			httpCachedRequests.WithLabelValues(zoneNames[zone.ZoneTag]).Add(float64(timeBucket.Sum.CachedRequests))
-			httpCachedBytes.WithLabelValues(zoneNames[zone.ZoneTag]).Add(float64(timeBucket.Sum.CachedBytes))
+			httpCachedRequests.WithLabelValues(zoneNames[zone.ZoneTag]).Add(float64(timeBucket.Sum.CachedRequests), bucketTime)
+			httpCachedBytes.WithLabelValues(zoneNames[zone.ZoneTag]).Add(float64(timeBucket.Sum.CachedBytes), bucketTime)
 
 			for _, httpVersionData := range timeBucket.Sum.ClientHTTPVersionMap {
 				httpProtocolRequests.WithLabelValues(zoneNames[zone.ZoneTag], httpVersionData.ClientHTTPProtocol).
-					Add(float64(httpVersionData.Requests))
+					Add(float64(httpVersionData.Requests), bucketTime)
 			}
 
 			for _, responseStatusData := range timeBucket.Sum.ResponseStatusMap {
 				httpResponses.WithLabelValues(zoneNames[zone.ZoneTag], fmt.Sprintf("%d", responseStatusData.EdgeResponseStatus)).
-					Add(float64(responseStatusData.Requests))
+					Add(float64(responseStatusData.Requests), bucketTime)
 			}
 
 			for _, threatPathData := range timeBucket.Sum.ThreatPathingMap {
 				httpThreats.WithLabelValues(zoneNames[zone.ZoneTag], threatPathData.ThreatPathingName).
-					Add(float64(threatPathData.Requests))
+					Add(float64(threatPathData.Requests), bucketTime)
 			}
 		}
 	}
@@ -75,7 +75,7 @@ func extractZoneFirewallEvents(zone zoneResp, zoneNames map[string]string, lastD
 			firewallEvents.WithLabelValues(
 				zoneNames[zone.ZoneTag], firewallEventGroup.Dimensions.Action,
 				firewallEventGroup.Dimensions.Source, firewallEventGroup.Dimensions.RuleID,
-			).Add(float64(firewallEventGroup.Count))
+			).Add(float64(firewallEventGroup.Count), eventTime)
 		}
 	}
 	return len(zone.FirewallEventsAdaptiveGroups), lastDateTimeCounted, nil
@@ -95,7 +95,7 @@ func extractZoneHealthCheckEvents(zone zoneResp, zoneNames map[string]string, la
 				healthCheckEventsGroup.Dimensions.HealthCheckName, healthCheckEventsGroup.Dimensions.HealthStatus,
 				fmt.Sprintf("%d", healthCheckEventsGroup.Dimensions.OriginResponseStatus),
 				healthCheckEventsGroup.Dimensions.Region, healthCheckEventsGroup.Dimensions.Scope,
-			).Add(float64(healthCheckEventsGroup.Count))
+			).Add(float64(healthCheckEventsGroup.Count), eventTime)
 		}
 	}
 	return len(zone.HealthCheckEventsGroups), lastDateTimeCounted, nil

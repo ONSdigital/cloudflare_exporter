@@ -15,6 +15,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// HACK: should really make metricsMaxAge injectable, but that would require a
+// bit of refactoring that doesn't quite need to be done. For now, override
+// metricsMaxAge to a very large number so that the hardcoded bucket times in
+// the test fixtures do not become stale.
+func init() {
+	metricsMaxAge = time.Hour * 24 * 365 * 100
+}
+
 func TestParseZoneIDs_ReturnsMapOfNonPendingZones(t *testing.T) {
 	f, err := os.Open("testdata/zones_resp.json")
 	require.Nil(t, err)
@@ -138,7 +146,7 @@ func TestExtractZoneHTTPRequests_ReturnsUnmodifiedLastDateTimeCountedWhenNoDataR
 	var gqlResp map[string]cloudflareResp
 	require.Nil(t, json.NewDecoder(testDataFile).Decode(&gqlResp))
 
-	lastDateTimeCounted := time.Now()
+	lastDateTimeCounted := time.Now().UTC()
 
 	zones := map[string]string{"a-zone": "a-zone-name"}
 	_, newLastDateTime, err := extractZoneHTTPRequests(gqlResp["data"].Viewer.Zones[0], zones, lastDateTimeCounted)

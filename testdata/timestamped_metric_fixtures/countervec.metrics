@@ -1,0 +1,6 @@
+# HELP namespace_subsystem_name help
+# TYPE namespace_subsystem_name counter
+namespace_subsystem_name{const="constval",l1="banana",l2="potato"} 100 1589796425000
+namespace_subsystem_name{const="constval",l1="baz",l2="bar"} 11 1589796424000
+namespace_subsystem_name{const="constval",l1="foo",l2="bar"} 3 1589796422000
+namespace_subsystem_name{const="constval",l1="foo",l2="baz"} 10 1589796423000

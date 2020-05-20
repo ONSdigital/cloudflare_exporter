@@ -1,15 +1,15 @@
 # HELP cloudflare_zones_http_country_bytes_total Number of HTTP bytes by country.
 # TYPE cloudflare_zones_http_country_bytes_total counter
-cloudflare_zones_http_country_bytes_total{client_country_name="CZ",zone="a-zone-name"} 400
-cloudflare_zones_http_country_bytes_total{client_country_name="DE",zone="a-zone-name"} 400
-cloudflare_zones_http_country_bytes_total{client_country_name="GB",zone="a-zone-name"} 200
+cloudflare_zones_http_country_bytes_total{client_country_name="CZ",zone="a-zone-name"} 400 1580983380000
+cloudflare_zones_http_country_bytes_total{client_country_name="DE",zone="a-zone-name"} 400 1580983320000
+cloudflare_zones_http_country_bytes_total{client_country_name="GB",zone="a-zone-name"} 200 1580983380000
 # HELP cloudflare_zones_http_country_requests_total Number of HTTP requests by country.
 # TYPE cloudflare_zones_http_country_requests_total counter
-cloudflare_zones_http_country_requests_total{client_country_name="CZ",zone="a-zone-name"} 3
-cloudflare_zones_http_country_requests_total{client_country_name="DE",zone="a-zone-name"} 3
-cloudflare_zones_http_country_requests_total{client_country_name="GB",zone="a-zone-name"} 24
+cloudflare_zones_http_country_requests_total{client_country_name="CZ",zone="a-zone-name"} 3 1580983380000
+cloudflare_zones_http_country_requests_total{client_country_name="DE",zone="a-zone-name"} 3 1580983320000
+cloudflare_zones_http_country_requests_total{client_country_name="GB",zone="a-zone-name"} 24 1580983380000
 # HELP cloudflare_zones_http_country_threats_total Number of HTTP threats by country.
 # TYPE cloudflare_zones_http_country_threats_total counter
-cloudflare_zones_http_country_threats_total{client_country_name="CZ",zone="a-zone-name"} 0
-cloudflare_zones_http_country_threats_total{client_country_name="DE",zone="a-zone-name"} 1
-cloudflare_zones_http_country_threats_total{client_country_name="GB",zone="a-zone-name"} 0
+cloudflare_zones_http_country_threats_total{client_country_name="CZ",zone="a-zone-name"} 0 1580983380000
+cloudflare_zones_http_country_threats_total{client_country_name="DE",zone="a-zone-name"} 1 1580983320000
+cloudflare_zones_http_country_threats_total{client_country_name="GB",zone="a-zone-name"} 0 1580983380000

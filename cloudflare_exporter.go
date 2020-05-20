@@ -131,10 +131,6 @@ type graphqlClient interface {
 }
 
 func (e *exporter) scrapeCloudflare(ctx context.Context) error {
-	if err := e.initializeVectors(ctx); err != nil {
-		return err
-	}
-
 	if *initialScrapeImmediately {
 		// Initial scrape, the ticker below won't fire straight away.
 		// Risks double counting on restart. Only useful for development.
@@ -209,69 +205,10 @@ func (e *exporter) scrapeCloudflareOnce(ctx context.Context) error {
 		return err
 	}
 
-	cfLastSuccessTimestampSeconds.Set(float64(time.Now().Unix()))
+	cfLastSuccessTimestampSeconds.Set(float64(time.Now().UTC().Unix()))
 
 	logger.Log("msg", "finished", "duration", duration.Seconds())
 	return nil
-}
-
-func (e *exporter) initializeVectors(ctx context.Context) error {
-	logger := level.Info(log.With(e.logger, "event", "collecting initial country list"))
-	logger.Log("msg", "starting")
-
-	var initialZones map[string]string
-	var initialCountries map[string]struct{}
-	duration, err := timeOperation(func() error {
-		var err error
-		initialZones, err = e.getZones(ctx)
-		if err != nil {
-			return err
-		}
-		initialCountries, err = e.getInitialCountries(ctx, initialZones)
-		if err != nil {
-			return err
-		}
-		return nil
-	})
-	if err != nil {
-		return err
-	}
-
-	for _, zone := range initialZones {
-		for country := range initialCountries {
-			httpCountryRequests.WithLabelValues(zone, country)
-			httpCountryThreats.WithLabelValues(zone, country)
-			httpCountryBytes.WithLabelValues(zone, country)
-		}
-	}
-
-	logger.Log("msg", "finished", "duration", duration.Seconds())
-	return nil
-}
-
-func (e *exporter) getInitialCountries(ctx context.Context, zones map[string]string) (map[string]struct{}, error) {
-	initialCountriesGqlReq.Var("zones", keys(zones))
-	initialCountriesGqlReq.Var("start_time", time.Now().Add(-12*time.Hour))
-
-	var gqlResp cloudflareResp
-	if err := e.makeGraphqlRequest(
-		ctx, log.With(e.logger, "request", "graphql:zones:httpRequests1mGroups"),
-		initialCountriesGqlReq, &gqlResp,
-	); err != nil {
-		return nil, err
-	}
-
-	// Quick n dirty HashSet
-	// Values will be unique within a zone, but we have a list of zones.
-	countries := map[string]struct{}{}
-	for _, zone := range gqlResp.Viewer.Zones {
-		for _, reqGroup := range zone.ReqGroups {
-			for _, country := range reqGroup.Sum.CountryMap {
-				countries[country.ClientCountryName] = struct{}{}
-			}
-		}
-	}
-	return countries, nil
 }
 
 func (e *exporter) getZoneAnalytics(ctx context.Context, zones map[string]string) error {
@@ -305,7 +242,7 @@ func (e *exporter) getZoneAnalyticsKind(
 		for {
 			lastDateTimeCounted := lastSeenBucketTimes[zoneID]
 			if lastDateTimeCounted == (time.Time{}) {
-				lastDateTimeCounted = time.Now().Add(-e.scrapeInterval)
+				lastDateTimeCounted = time.Now().UTC().Add(-e.scrapeInterval)
 			}
 			logger.Log("msg", "starting", "last_datetime_bucket", lastDateTimeCounted.String())
 			req.Var("zone", zoneID)
@@ -337,7 +274,7 @@ func (e *exporter) getZoneAnalyticsKind(
 				// successive queries, it's possible that the query window would grow to
 				// exceed the API maximum for this data set. Cap the window to prevent
 				// this.
-				lastSeenBucketTimes[zone.ZoneTag] = time.Now().Add(maxTimeWindow * -1)
+				lastSeenBucketTimes[zone.ZoneTag] = time.Now().UTC().Add(maxTimeWindow * -1)
 			}
 			logger.Log("msg", "finished", "last_datetime_bucket", lastSeenBucketTimes[zone.ZoneTag].String(), "results", results)
 
