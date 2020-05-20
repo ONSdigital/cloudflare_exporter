@@ -23,13 +23,31 @@ func init() {
 	metricsMaxAge = time.Hour * 24 * 365 * 100
 }
 
-func TestParseZoneIDs_ReturnsMapOfNonPendingZones(t *testing.T) {
-	f, err := os.Open("testdata/zones_resp.json")
-	require.Nil(t, err)
-	defer f.Close()
-	zones, err := parseZoneIDs(f)
-	require.Nil(t, err)
-	assert.Equal(t, zones, map[string]string{"zone-1-id": "zone-1", "zone-2-id": "zone-2"})
+func TestParseZoneIDs(t *testing.T) {
+	for _, tc := range []struct {
+		name          string
+		zonesFilter   []string
+		expectedZones map[string]string
+	}{
+		{
+			name:          "returns map of all non-pending zones when no filter specified",
+			expectedZones: map[string]string{"zone-1-id": "zone-1", "zone-2-id": "zone-2"},
+		},
+		{
+			name:          "returns map of non-pending zones that are also present in filter",
+			zonesFilter:   []string{"zone-2"},
+			expectedZones: map[string]string{"zone-2-id": "zone-2"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f, err := os.Open("testdata/zones_resp.json")
+			require.Nil(t, err)
+			defer f.Close()
+			zones, err := parseZoneIDs(f, tc.zonesFilter)
+			require.Nil(t, err)
+			assert.Equal(t, zones, tc.expectedZones)
+		})
+	}
 }
 
 func TestZoneAnalytics(t *testing.T) {
