@@ -49,9 +49,11 @@ query ($zone: String!, $start_time: Time!, $limit: Int!) {
         count
         dimensions {
           action
+          datetime
+          edgeResponseStatus
+          originResponseStatus
           ruleId
           source
-          datetime
         }
       }
       zoneTag

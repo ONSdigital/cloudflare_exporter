@@ -1,4 +1,4 @@
 # HELP cloudflare_zones_firewall_events_total Number of firewall events.
 # TYPE cloudflare_zones_firewall_events_total counter
-cloudflare_zones_firewall_events_total{action="drop",ruleID="100202",source="waf",zone="a-zone-name"} 1 1581494354000
-cloudflare_zones_firewall_events_total{action="simulate",ruleID="100043B",source="waf",zone="a-zone-name"} 1 1581493259000
+cloudflare_zones_firewall_events_total{action="drop",edgeResponseStatus="502",originResponseStatus="0",ruleID="100202",source="waf",zone="a-zone-name"} 1 1581494354000
+cloudflare_zones_firewall_events_total{action="simulate",edgeResponseStatus="200",originResponseStatus="200",ruleID="100043B",source="waf",zone="a-zone-name"} 1 1581493259000
