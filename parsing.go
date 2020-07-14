@@ -50,7 +50,7 @@ func extractZoneHTTPRequests(zone zoneResp, zoneNames map[string]string, lastDat
 			}
 
 			for _, responseStatusData := range timeBucket.Sum.ResponseStatusMap {
-				httpResponses.WithLabelValues(zoneNames[zone.ZoneTag], fmt.Sprintf("%d", responseStatusData.EdgeResponseStatus)).
+				httpResponses.WithLabelValues(zoneNames[zone.ZoneTag], toString(responseStatusData.EdgeResponseStatus)).
 					Add(float64(responseStatusData.Requests), bucketTime)
 			}
 
@@ -75,6 +75,7 @@ func extractZoneFirewallEvents(zone zoneResp, zoneNames map[string]string, lastD
 			firewallEvents.WithLabelValues(
 				zoneNames[zone.ZoneTag], firewallEventGroup.Dimensions.Action,
 				firewallEventGroup.Dimensions.Source, firewallEventGroup.Dimensions.RuleID,
+				toString(firewallEventGroup.Dimensions.EdgeResponseStatus), toString(firewallEventGroup.Dimensions.OriginResponseStatus),
 			).Add(float64(firewallEventGroup.Count), eventTime)
 		}
 	}
@@ -93,7 +94,7 @@ func extractZoneHealthCheckEvents(zone zoneResp, zoneNames map[string]string, la
 			healthCheckEvents.WithLabelValues(
 				zoneNames[zone.ZoneTag], healthCheckEventsGroup.Dimensions.FailureReason,
 				healthCheckEventsGroup.Dimensions.HealthCheckName, healthCheckEventsGroup.Dimensions.HealthStatus,
-				fmt.Sprintf("%d", healthCheckEventsGroup.Dimensions.OriginResponseStatus),
+				toString(healthCheckEventsGroup.Dimensions.OriginResponseStatus),
 				healthCheckEventsGroup.Dimensions.Region, healthCheckEventsGroup.Dimensions.Scope,
 			).Add(float64(healthCheckEventsGroup.Count), eventTime)
 		}
@@ -139,10 +140,12 @@ type zoneResp struct {
 	FirewallEventsAdaptiveGroups []struct {
 		Count      uint64 `json:"count"`
 		Dimensions struct {
-			Action   string `json:"action"`
-			Datetime string `json:"datetime"`
-			RuleID   string `json:"ruleId"`
-			Source   string `json:"source"`
+			Action               string `json:"action"`
+			Datetime             string `json:"datetime"`
+			EdgeResponseStatus   int    `json:"edgeResponseStatus"`
+			OriginResponseStatus int    `json:"originResponseStatus"`
+			RuleID               string `json:"ruleId"`
+			Source               string `json:"source"`
 		} `json:"dimensions"`
 	} `json:"firewallEventsAdaptiveGroups"`
 
@@ -168,4 +171,8 @@ type zonesResp struct {
 		Name   string `json:"name"`
 		Status string `json:"status"`
 	} `json:"result"`
+}
+
+func toString(i int) string {
+	return fmt.Sprintf("%d", i)
 }

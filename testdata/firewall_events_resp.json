@@ -9,6 +9,8 @@
               "dimensions": {
                 "action": "simulate",
                 "datetime": "2020-02-12T07:10:37Z",
+                "edgeResponseStatus": 200,
+                "originResponseStatus": 200,
                 "ruleId": "100038A",
                 "source": "waf"
               }
@@ -18,6 +20,8 @@
               "dimensions": {
                 "action": "drop",
                 "datetime": "2020-02-12T07:37:56Z",
+                "edgeResponseStatus": 503,
+                "originResponseStatus": 503,
                 "ruleId": "bic",
                 "source": "bic"
               }
@@ -27,6 +31,8 @@
               "dimensions": {
                 "action": "simulate",
                 "datetime": "2020-02-12T07:40:59Z",
+                "edgeResponseStatus": 200,
+                "originResponseStatus": 200,
                 "ruleId": "100043B",
                 "source": "waf"
               }
@@ -36,6 +42,8 @@
               "dimensions": {
                 "action": "drop",
                 "datetime": "2020-02-12T07:59:14Z",
+                "edgeResponseStatus": 502,
+                "originResponseStatus": 0,
                 "ruleId": "100202",
                 "source": "waf"
               }

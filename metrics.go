@@ -119,7 +119,7 @@ func registerMetrics(reg prometheus.Registerer) {
 			Name:      "firewall_events_total",
 			Help:      "Number of firewall events.",
 		},
-		[]string{"zone", "action", "source", "ruleID"},
+		[]string{"zone", "action", "source", "ruleID", "edgeResponseStatus", "originResponseStatus"},
 	)
 	healthCheckEvents = NewTimestampedMetricVec(
 		prometheus.CounterValue,
